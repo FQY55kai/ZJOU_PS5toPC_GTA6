@@ -33,19 +33,40 @@ PS5 dump（pkg）是另一条路线：同为 x86-64 CPU + RDNA 图形栈，
 | Tempest 音频 | 专用 DSP 块，只能 CPU 软算 |
 | 加密容器 | 本项目不解密、不处理密钥；loader 只接受用户自己的明文 dump |
 
+## 路线：KytyPS5（主力）
+
+[KytyPS5](https://github.com/KytyPS5/KytyPS5) — PlayStation 5 **翻译层**（C++，GPL-2.0，12k 星，
+基于 InoriRus/Kyty 深度修改，shadPS4 为参考实现）。Windows/Linux 为主，Vulkan 1.3，
+RDNA2 shader recompiler → SPIR-V（`src/graphics/shader/recompiler`）。
+实测在游戏：Cyberpunk 2077、Astro Bot（60+）、Demon's Souls（60+）、UFC 6、MLB 23、Saros。
+已有按游戏维护的社区 fork（Jetsku / chenxiao07 / TheCruZ 的 KytyPS5-GTA 等）——
+**TheCruZ/KytyPS5-GTA（GTA5 40+ fps）在 dump 出现后大概率转向 GTA6**，与本项目的 pkg 对接。
+
+加载格式：含 `eboot.bin` 的游戏目录或 ZArchive（`.zar`）dump；**不直接吃 pkg**。
+pkg → dump 的提取是落地前置步骤之一。
+
+辅助路线：[boykopovar/AnyPS5](https://github.com/boykopovar/AnyPS5)（按游戏 AOT recomp，
+Astro Bot/God of War 专版分支）；[claimore22/ps5rs](https://github.com/claimore22/ps5rs)
+（SELF eboot.bin → ELF 提取，AnyPS5 不吃 SELF 格式）。
+
 ## 现状与风险声明
 
-截至 2026-11：**尚无可运行 GTA VI 的公开 PS5 模拟器。**
+截至 2026-11：**GTA VI 尚无可运行的 PC 模拟**；KytyPS5 是当前最有希望的主线
+（翻译层架构与 Xbox 侧 VIctory 同类，方法论直接可迁移）。
 `shadps5.com` 自述相互矛盾（AOT recomp vs JIT、94/119 playable vs "not ready yet"）、
 无源码仓库链接，**按钓鱼/假站对待，不使用其任何二进制**。
-真实研究前沿：Apple Silicon 的 AOT recomp 实验框架、PS4 模拟器的 PS5 预研。
 
 ## 致谢与上游
 
 **PS 侧**
+- [KytyPS5/KytyPS5](https://github.com/KytyPS5/KytyPS5) — PS5 翻译层主力路线（本仓库对接的主上游）
+- [TheCruZ/KytyPS5-GTA](https://github.com/TheCruZ/KytyPS5-GTA) — GTA 系专版 fork（预期转向 GTA6）
+- [boykopovar/AnyPS5](https://github.com/boykopovar/AnyPS5) — 按游戏 AOT recomp 路线
+- [claimore22/ps5rs](https://github.com/claimore22/ps5rs) — SELF→ELF 提取工具
 - [shadps4-emu/shadPS4](https://github.com/shadps4-emu/shadPS4) — PS4 模拟器，Orbis HLE 与 GPU 翻译的参考实现
+- InoriRus/Kyty — KytyPS5 的基础项目
 - [error9098x/ps5-native-mac](https://github.com/error9098x/ps5-native-mac) — PS5 AOT recomp 实验框架（Apple Silicon / Metal）
-- AnyPS5 — SCE 库移植参考（ps5-native-mac 引用）
+- AnyPS5 的 SCE 库移植（prx/Lib）— Orbis 系统库参考
 - [N64Recomp](https://github.com/N64Recomp/N64Recomp)、[XenonRecomp](https://github.com/hedge-dev/XenonRecomp)、[UnleashedRecomp](https://github.com/hedge-dev/UnleashedRecomp) — 全游戏 AOT 重编译方法论
 
 **Xbox 侧（同标题先行者，方法论直接可迁移）**
