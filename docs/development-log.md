@@ -148,3 +148,11 @@
   到货后从"unresolved import"开始补 HLE 即是移植主战场。
 - 夸克网盘正在下载 dump 分卷（`Downloads\Grand Theft Auto VI [PPSA38500] [v01.002]`，
   6 卷并行已 960MB+）；已建每小时自动化监控，分卷齐后自动解压+首启+报告。
+
+## 2026-11-27 11:57 Americas PS5 Menu（GTA VI 游戏内插件）归档
+- 微信收到 `Americas PS5 Menu 2026-11-27.rar`（XeMo 作品）：`GTA6Menu.prx`（SELF 415KB）+
+  `GTA6MenuLoader.elf`（x86-64，padhook 注入）+ `ui_assets.bin` + kstuff-lite 1.15-dr-test2a。
+- 关键情报：**GTA VI v01.002.001 在破解机（FW 7.40+）启动必须 kstuff-lite 1.15-dr**，
+  否则卡 "please wait" —— 再次印证 kstuff PPR 机制是 dump 工作流的核心。
+- loader 经 libScePad 劫持向游戏进程注入 prx；解压分析于 `PS5/analysis/ps5menu/`。
+  纯主机侧工具，非 PC 移植素材，留作 GTA VI 进程内存布局参考。
