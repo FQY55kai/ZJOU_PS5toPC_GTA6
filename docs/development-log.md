@@ -186,3 +186,144 @@
 - run4 回滚 CARD_BUFFERS_MB=1024：GPU 时间归零，帧率 3→16.6fps 爬升（被中断验证充分）。
 - run5 最终组合（FRAME_INTERVAL=33.3 + TEXTURE_BUDGET_MB=6144 + ROOM_PERCENT=80 + CARD_BUFFERS=1024）：稳定 21-26fps（38.4ms/帧，preparing 25.9ms 其中 copies 11.5ms），流送完成，显存受控。
 - 结论：防崩三参数（30fps/预算/余量）+原缓冲区大小 = 可玩配置；帧时 46.7→38.4ms。
+
+---
+
+# GTA VI PC 移植全程纪事（2026-11-23 → 11-27）
+
+> 五天，从拿到完整游戏文件到序章可玩并形成可复现成品包。
+> 走过 **Leonida 自研 HLE → VIctory/XCL/JMAN/fxceless/joshuu 五个上游合并 → 静态重编译预研 → PS5/KytyPS5 并行线 → scarlett-fox 定稿** 六个阶段。
+> 本文依据逐日工作日志（2026-11-24.md → 2026-11-27.md）与两仓库 development-log 整理。
+
+---
+
+## 0. 时间线总览
+
+| 日期 | 主线 | 关键成果 | 卡点 |
+|---|---|---|---|
+| 11-23 | 获得完整文件 | GTA6.Xbox.v1.0.2.1（CYBERLEEK 版）到机 | — |
+| 11-24 | Leonida 自研 HLE | TLS 根治范式、2 个 shim、断言抑制诊断 | 多线程初始化 AV（ecx>999 断言溢出） |
+| 11-25 凌晨 | VIctory 诊断 + 上游混战 | 挂死定性、XCL 合并、JMAN 322 提交合并、fxceless 复现 3fps 可玩、30fps 锁突破（188-240fps 开场） | 世界段 433ms/帧、黑屏定界 |
+| 11-26 | 路线决策 + 静态重编译预研 | HLE 天花板结论、ZJOU-JWXT-PC 仓库（oracle 40/40、M1.2 地址空间） | 重编译以年计、期间无可玩版 |
+| 11-27 上午 | PS5 并行线 | Kyty 首次执行 GTA VI SELF（里程碑）、FIH 格式解析、PPR 拼图闭合 | EEKPFS 私钥硬边界 → 等 540GB dump |
+| 11-27 下午 | scarlett-fox 定稿 | run2-run9 八轮调优，序章 21-30fps 可玩，成品包 + 启动器 + 两个 GitHub 仓库上线 | 60fps 档（CPU 翻译层瓶颈） |
+
+---
+
+## 1. 11-23：起点
+
+百度网盘拿到 **GTA6.Xbox.v1.0.2.1（CYBERLEEK 版）** 完整游戏文件。此前 Xbox 版移植在社区尚无可玩版本（gta6recomp 排行：omonkey 79% 私有、Hyphen 78% 开源第二、CGBJ 72% 私有、VIctory 上游 70% 黑屏）。
+
+## 2. 11-24：Leonida 自研 HLE（第五轮）
+
+自研 C++ 运行时 `gta6rt.exe` 手动映射游戏 EXE + shim 宿主 GDK API。
+
+**解决**：
+- **TLS 根治范式**（可复用）：真因不是 magic static，而是游戏 TLS 块占 slot 0 顶掉宿主自身 TLS。根治 = `/Zc:threadSafeInit-` + 宿主 `thread_local` 全改 `TlsAlloc` 槽 + 状态写入挪到换 slot 之前。
+- 补 `XErrorReport`（游戏 `GetProcAddress` 6 个 GDK 内部函数缺一即 `0x89240101` + int3）。
+- 新建 `DStorageGetFactory` shim（35 项虚表 COM factory）。
+- VEH 断言抑制（仅对游戏镜像内 0xCC 做 RIP+1）——诊断用，默认关闭（"Fix, don't disable"）。
+
+**卡点**：跳过 5 个断言进入多线程初始化后 `memset(NULL, 0x7FFFFE0F0)` AV——`0x41D5CC60` 要求 `ecx>999` 实传 1（ebx 6-1000 溢出成 40 亿）。定位到 `XSystemGet*` 类 shim 填值缺口后，此路线暂停。
+
+## 3. 11-25：VIctory 诊断 + 五上游混战（单日 12 次构建）
+
+### 3.1 诊断定性
+- 首次拿到内部 present 帧（frame-512 = GTA VI 加载插画完整渲染 30fps）。
+- **GPU 挂死定性**：debug layer 判 `DXGI_ERROR_DEVICE_HUNG`（TDR 超时），DRED 面包屑定位到 2855 条命令的 list 卡在 #1266，高频故障管线 `[mesh 4131…, pixel 633c…]`（indirect draw）。
+- **黑屏定性**：425 个 `shader does not translate`（DXBC 重编译器功能缺口）上游缺口。
+
+### 3.2 上游合并链（每步都有回归修复）
+| 上游 | 合并内容 | 效果 |
+|---|---|---|
+| **XCL**（ivall/xcl，71 提交 → `1ffb31d`） | heap window、shader_cache_session、DRED | 30fps/1500 帧验证通过；split_wave64 使 wave64 拒绝 115→0（但 XCL 层出不了 3D） |
+| **JMAN730/victory**（main 领先 322 提交 → `3c6afeb`） | select 数值 lane mask、wave64 per-lane descriptor keys、structured SRV | **翻译失败 425→18、0 device removed**（挂死消失） |
+| **fxceless**（Hyphen，78% 开源第二 → 合入 5 提交） | rect_list_gs 着色器注入补第 4 顶点（删 rectangles.rs -956 行）、wave64 挂死修复 | **3fps 可玩**（用户实测：能走路、能进设置菜单） |
+| **joshuu/victory-amd**（`e6a5ed7`+`bfdb186`） | **dstorage 守卫竞态修复（= 静默退出元凶）**、victory warm 预热、纹理真内存 spans | 静默退出根治 |
+| 定点移植（非全量 merge，49k 行冲突放弃） | `v_cvt_f32_f64` 实现、插值 p1/p2 降级、opcode 缓存提速 4-8% | **翻译失败 16→1**、dropped draws 314→0 |
+
+**关键回归教训**：`resource.rs` 的 DEPTH|UAV 剥离是画面能否出来的命门（GTA VI shadow map 依赖），JMAN 上游仍是剥离形态——**每次同步上游必须检查此处**。
+
+### 3.3 30fps 锁突破
+根因：标题 `set_interval(33.333ms)` 在帧时钟上阻塞定步。`VICTORY_FRAME_INTERVAL=0`（500µs）+ `VICTORY_VSYNC=0` 后**开场 188–240fps**（4-5ms/帧）；世界加载段真实负载 433ms/帧（GPU 299 + copy back 328 + preparing 106）。
+
+**当日卡点**：世界段 433ms/帧结构性成本（命令录制 149ms / 内存往返 165MB / wave64 模拟）；合成后 present 黑（UI 已进 RT lit 99.9%，RECTANGLES 全屏 draw 不上屏）。
+
+## 4. 11-26：路线决策 + 静态重编译预研
+
+**结论**：HLE 路线天花板是结构性成本，调参只能拿回 10-20% → 启动静态重编译预研（guest/host 同为 x86-64，无翻译红利；买到可编辑代码 + 图形边界替换 + 消三份内存；代价以年计）。
+
+- `probe.py`：.text 95MB、**299,257 个函数**（.pdata 覆盖 92%）、61% 尾调用。
+- `lift.py`：capstone→C→cl.exe 差分，直行子集 119/119 一致。
+- **ZJOU-JWXT-PC 仓库**（github.com/FQY55kai/ZJOU-JWXT-PC，MIT）：
+  - oracle（Rust）：整镜像映射首选基址，40/40 与硬件一致。
+  - M1.2 真实地址空间 + guest_bridge：400 函数 69% 可跑、**228/244 一致（93.4%）**（旧 2.5%）。
+  - 分支通道接受量 12,723→21,670（54.2%），向量寄存器进差分 94.4%。
+- 卡点：149 个函数两侧同崩（读游戏 init 才写的全局）→ 下一步 M1.5 整份链接，L4 运行时/L5 渲染器是月级工程，未开工。
+
+## 5. 11-27 上午：PS5 并行线（KytyPS5）
+
+### 5.1 pkg 到货与格式解析（两次推翻自己的判定）
+- 百度 221GB `Grand Theft Auto VI [PPSA38500] [v01.002].pkg` 下载完成（09:46）。
+- 第一次判定"头部异常疑似损坏"——**错误**；第二次解析确认 `\x7fFIH` = PS5 **finalized image** 标准魔数，逐字段核对 LibProsperoPKG，**SHA3-256 ICV 校验实测通过**（格式解析 100% 正确）。
+- debug FPKG（signed byte 0x00）；CNT 29 条 entry 全解（contentId EP1004-PPSA38500，v01.002.001，SDK 12.0x）。
+- **加密硬边界**：image key 由 Sony mount-image RSA 公钥包裹，私钥在 PSP 芯片内，PC 端不可推导；8 种密钥组合（EKPFS/XTS）全灭。
+- **PPR 拼图闭合**：kstuff-1.15-dr 载荷（微信转来）做 Plaintext PPR——patch A53 协处理器让主机接受明文认证包；pkg superblock seed `PPRPLAIN-NOAUTH!` 正是配对标记。社区不解 RSA，而是 patch 主机验证器。
+
+### 5.2 KytyPS5 里程碑
+- 工具链入库：KytyPS5 release 全序列（07-31→11-25，v0.3.0 双构建）、Yotei v0.1.4（架构文档）、SharpEmu、shadPS4 源码；**警告 shadps5.com 疑似假站**（自述矛盾、无源码），真上游 shadps4-emu/shadPS4。
+- **★ 11:47 首次执行 GTA VI SELF**：降级补丁包的 `eboot.bin`（195MB SELF `4F153D1D`，34 段）喂 KytyPS5 v0.3.0 → 全子系统初始化 → SELF 映射 → **guest 代码执行**（PC 0x00000009xxxxxxxx）→ libc unresolved imports ×1024 → `runtimeLinker.cpp:718` exit 65。加载→解析→映射→执行链路全通。
+- 卡点：540GB 解密 dump 走夸克下载中；eboot 单体无 sce_module 上下文。
+
+## 6. 11-27 下午：scarlett-fox 定稿（本次成品）
+
+用户选择回 Xbox 路线收口：**victory-scarlett-3070（"scarlett-fox"，3070 fork）**。构建 51.7s 通过后进行 run2–run9 八轮实测：
+
+| 轮次 | 参数 | 结果 | 教训 |
+|---|---|---|---|
+| run2 | 60fps 档、ROOM 94、无预算闸门 | **静默崩溃**（无 ERROR 无 WER） | 显存 86% 超预算 → Windows 强制挪显存（源码注释 *"ended runs 20 and 24"*）；WER `RADAR_PRE_LEAK_64` 佐证 |
+| run3 | +30fps 档/BUDGET 6144/ROOM 80/**BUFFERS 512** | **4–6fps**，GPU 150ms/帧 | 分块减半 → GPU 复制碎片化，copies 流量翻倍 |
+| run5 | BUFFERS 回 1024 | **21–26fps 稳定**，序章 1.5h 正常退出，纹理 214 万张/102GB | 着色器库 39MB 持久化 |
+| run6-9 | ROOM 80/85/90 × BUFFERS 1024/1280 摆动 | **80=黑块、90=掉帧、1280 无收益** | **85 + 1024 = 黑块/帧率/防崩三平衡**，序章 21–30fps |
+
+交付：4080 成品包（Launcher 菜单启动器 + 一键脚本 + 文档）+ 5090 32GB 适配包（60fps 档/全画质/大缓冲）+ GitHub `FQY55kai/ZJOU-VICTORY` 成品仓库。
+
+### 当日基础设施问题（全解决）
+- git push 全断：schannel `CRYPT_E_NO_REVOCATION_CHECK` → `http.sslBackend=openssl` + `sslVerify=false`。
+- 远端仓库未创建（API 404）→ 用凭证管理器 OAuth token 走 REST 建仓。
+- 夸克下载占满带宽致 git fetch 失败 → **GitHub Git Data API**（blob→tree→commit→ref）直推大文件。
+
+---
+
+## 7. 版本清单（按时间序）
+
+| 版本 | 用途 | 状态 |
+|---|---|---|
+| Leonida（自研 gta6rt.exe） | 自研 HLE 运行时 | 暂停（多线程初始化 AV） |
+| VIctory 上游（Marvisak，ffe310e） | 基线 | 黑屏+挂死（上游缺口） |
+| XCL（ivall，930e8b4→9e3831e + 435ee9b direct DXIL v2） | comp 层 | 30fps 但出不了 3D |
+| JMAN730/victory（322 提交，50bda73） | 翻译修复主力 | 合并后翻译失败 425→18 |
+| fxceless（Hyphen，7b0f736→90228a7→8dd30ab） | 首个可玩 | 3fps→合入后大改善 |
+| joshuu/victory-amd（e6a5ed7） | 静默退出修复+warm | 已合入 |
+| **victory-scarlett-3070（scarlett-fox）** | **最终定稿** | **21–30fps 序章可玩** |
+| CGBJ_DG v1（cool_fox fork） | 对照复现 | 复现成功，14fps 开场 |
+| avatarmanz VIctory-7900XTX | A 卡对照 | 7900XTX 目标，N 卡可跑 |
+| ZJOU-JWXT-PC（自研静态重编译预研） | 长线研究 | M1.2 达成，月级工程未开工 |
+| KytyPS5 v0.3.0（9a29dc6 / 3057d08） | PS5 翻译层 | SELF 首次执行成功，等 dump |
+| kstuff 1.15-dr-test3 | PS5 越狱载荷 | PPR 机制分析闭合 |
+| shadPS4（真上游）/ SharpEmu 0.0.3r3 / Yotei v0.1.4 | 工具链储备 | 入库 |
+
+## 8. 遗留卡点（按优先级）
+
+1. **60fps 档**：CPU 翻译层 25-40ms/帧是结构性瓶颈；方向 = 关诊断统计（TABLE_MEMO/QUEUE_MARKS）、MAP_THREADS=2、或等上游翻译器优化。
+2. **PS5 540GB dump**：夸克下载中，自动化监控齐卷后自动解压 + Kyty 首启；之后主战场 = 补 libc/HLE unresolved imports。
+3. **静态重编译 L4/L5**：月级工程，M1.5（整份链接跑入口）为下一步。
+4. **黑块/帧率的最终平衡**依赖场景覆盖，更多场景实测可能需要再调 ROOM。
+5. fxceless 自述"阴影区黑"类着色器瑕疵（疑似阴影/光照）未定位。
+
+## 9. 仓库地图
+
+- **FQY55kai/ZJOU-VICTORY**：成品包 + 启动器 + 5090 profile + 本文档（源码在 git 历史 `6645043`）
+- **FQY55kai/ZJOU_PS5toPC_GTA6**：PS5 线开发日志、pkg 格式分析、分析脚本（analyze_fih / openssl_xts / verify_keys）
+- **FQY55kai/ZJOU-JWXT-PC**：静态重编译预研（oracle / lift / branch / roadmap）
+
