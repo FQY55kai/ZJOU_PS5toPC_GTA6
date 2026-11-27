@@ -1,0 +1,190 @@
+{
+    "addcont": {
+        "serviceIdForSharing": [
+            "EP1004-PPSA01721_00",
+            "                   ",
+            "UP1004-PPSA16755_00",
+            "                   ",
+            "                   ",
+            "                   ",
+            "                   "
+        ]
+    },
+    "ageLevel": {
+        "AE": 21,
+        "AR": 17,
+        "AT": 18,
+        "AU": 18,
+        "BE": 18,
+        "BG": 18,
+        "BH": 18,
+        "BO": 17,
+        "BR": 18,
+        "CA": 17,
+        "CH": 18,
+        "CL": 17,
+        "CN": 18,
+        "CO": 17,
+        "CR": 17,
+        "CY": 18,
+        "CZ": 18,
+        "DE": 18,
+        "DK": 18,
+        "EC": 17,
+        "ES": 18,
+        "FI": 18,
+        "FR": 18,
+        "GB": 18,
+        "GR": 18,
+        "GT": 17,
+        "HK": 18,
+        "HN": 17,
+        "HR": 18,
+        "HU": 18,
+        "ID": 18,
+        "IE": 18,
+        "IL": 18,
+        "IN": 18,
+        "IS": 18,
+        "IT": 18,
+        "JP": 18,
+        "KR": 19,
+        "KW": 18,
+        "LB": 18,
+        "LU": 18,
+        "MT": 18,
+        "MX": 17,
+        "MY": 18,
+        "NI": 17,
+        "NL": 18,
+        "NO": 18,
+        "NZ": 18,
+        "OM": 18,
+        "PA": 17,
+        "PE": 17,
+        "PL": 18,
+        "PT": 18,
+        "PY": 17,
+        "QA": 18,
+        "RO": 18,
+        "RU": 18,
+        "SA": 21,
+        "SE": 18,
+        "SG": 18,
+        "SI": 18,
+        "SK": 18,
+        "SV": 17,
+        "TH": 18,
+        "TR": 18,
+        "TW": 18,
+        "UA": 18,
+        "US": 17,
+        "UY": 17,
+        "ZA": 18,
+        "default": 21
+    },
+    "applicationCategoryType": 0,
+    "applicationDrmType": "standard",
+    "asa": {
+        "code": {
+            "asa12": "4"
+        },
+        "sign": [
+            "4Ru9lgPXtJySU3sDU1IysxA6PCVkVzKFda3EfidNUSnKhbOuWu9DK/3q3RV/QNKb",
+            "sT1eny+DdtVT1vVZpbkjR+o3kjrVGpgYrzVH2k/MT5wvYq8S9gLoQt95joiIm42N",
+            "MkpWUI2nPqkdvc88p3ViyNTsLEax1A1EDZp2eIMaqQ/UUI8LefvnGtZeXF8nMrjV",
+            "HsBVQ7ehXU7jigTnVYIvSao4iRxGkLkUR9usZ0akGs1uJbsTC3uB72oFTNc8zHtu",
+            "u5bou9lmiHtq3eve2NR6AqEVcrQQwF9u6mrK59ZR1JC5QJCKShENrlp4mfcjKL/6",
+            "4I3SI5o/CWgM5Ac1N95pbZ9LF3Eu2VX90t0OQZjM6IvVOt5C9ZOM3J86l7LcKTU+",
+            "eNK5yzttL73+4pwXvBx8eZTbBITC5mNtEiCPQiNKI6mOUwBrMfsezbWOmILDK9M5",
+            "PgVtuJgSQ1/Wz8AmD4NvwJGbd/d2V+0CfvHOO9zm8XrujeDFVYsokKgGukpTe85z"
+        ]
+    },
+    "attribute": 570425344,
+    "attribute2": 4,
+    "attribute3": 171966544,
+    "attribute4": 2,
+    "attributePub": 4,
+    "conceptId": "10000730",
+    "contentBadgeType": 1,
+    "contentId": "EP1004-PPSA38500_00-GRANDTHEFTAUTO00",
+    "contentVersion": "01.002.001",
+    "downloadDataSize": 512,
+    "gameIntent": {
+        "permittedIntents": [
+            {
+                "intentType": "joinSession"
+            },
+            {
+                "intentType": "launchActivity"
+            },
+            {
+                "intentType": "launchMultiplayerActivity"
+            }
+        ]
+    },
+    "kernel": {
+        "appSizeInGib": 320,
+        "flexibleMemorySize": 312475648
+    },
+    "localizedParameters": {
+        "de-DE": {
+            "titleName": "Grand Theft Auto VI"
+        },
+        "defaultLanguage": "en-US",
+        "en-US": {
+            "titleName": "Grand Theft Auto VI"
+        },
+        "es-419": {
+            "titleName": "Grand Theft Auto VI"
+        },
+        "es-ES": {
+            "titleName": "Grand Theft Auto VI"
+        },
+        "fr-FR": {
+            "titleName": "Grand Theft Auto VI"
+        },
+        "it-IT": {
+            "titleName": "Grand Theft Auto VI"
+        },
+        "ko-KR": {
+            "titleName": "Grand Theft Auto VI"
+        },
+        "pl-PL": {
+            "titleName": "Grand Theft Auto VI"
+        },
+        "pt-BR": {
+            "titleName": "Grand Theft Auto VI"
+        },
+        "ru-RU": {
+            "titleName": "Grand Theft Auto VI"
+        },
+        "zh-Hans": {
+            "titleName": "Grand Theft Auto VI"
+        },
+        "zh-Hant": {
+            "titleName": "Grand Theft Auto VI"
+        }
+    },
+    "masterVersion": "01.00",
+    "originContentVersion": "01.000.000",
+    "playgo": {
+        "supportedApplicationOperationModes": 6
+    },
+    "psml": {
+        "mfsrVersion": "13.60"
+    },
+    "pubtools": {
+        "attributeN": 3072,
+        "creationDate": "2026-11-14 03:57:48",
+        "loudnessSnd0": "-23.98",
+        "submission": true,
+        "toolVersion": "3.47"
+    },
+    "requiredSystemSoftwareVersion": "0x0900000000000000",
+    "sdkVersion": "0x0900000000000000",
+    "targetContentVersion": "01.002.000",
+    "titleId": "PPSA38500",
+    "userDefinedParam1": 266768,
+    "versionFileUri": "https://sgst.prod.dl.playstation.net/sgst/prod/00/np/PPSA38500_00/1defd7e2-877e-4544-8b7c-936b042828fe-version.xml                                                                                                                                             "
+}
