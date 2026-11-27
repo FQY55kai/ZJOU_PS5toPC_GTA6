@@ -661,3 +661,8 @@
 - 结论：libc.prx 是 PC 线活素材；剩余卡点 = libkernel NID HLE + 540GB 数据文件。
 - 另：夸克 540GB 下载实为同字节 pkg（221,028,009,318B 与百度件一致）的 rar 重打包，
   非解密 dump——已确认重复，等用户在夸克重新选 dump 文件夹。
+
+## 2026-11-27 16:55 dump 形态与获取路径确认（PC 解包路线关闭）
+- 外部佐证：ps5-pkg-decryption（BreadJS）明示 pkg 解密必须经真机 PSP 芯片；tekqart dump 教程证实社区 540GB dump = 破解机 FTP 直拷 /mnt/sandbox/PPSA38500/app0 明文目录，无解密步骤。
+- 163/腾讯/TLDR 多方报道（11-25 起）：dump 含解密 eboot.bin + sce_sys + 游戏资源，Reddit 已验证 FW 11.60 越狱机可运行（正版要求 14.23）；Take-Two 正对移植社区发 DMCA。
+- 结论：pkg 在 PC 端解包路线正式关闭（密钥物理隔离 + 社区无先例）；获取 dump 只剩 ①分享内找文件夹形态资源 ②自制 FTP dump。Kyty 线维持等 dump 状态。
