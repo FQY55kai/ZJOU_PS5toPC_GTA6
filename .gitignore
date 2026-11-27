@@ -1,0 +1,6 @@
+# large local artifacts are intentionally kept out of git
+*.pkg
+*.zip
+*.exe
+*.dll
+cache/
