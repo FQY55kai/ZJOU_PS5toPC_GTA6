@@ -112,3 +112,10 @@
   `FQY55kai/ZJOU_PS5toPC_GTA6`（public）。
 - `git push -u origin main` 成功：8 个 commit 全部上线，main 已跟踪 origin/main。
 - TLS 配置已写入仓库本地 config，后续 push 不再需要 -c 参数。
+
+## 2026-11-27 11:38 KytyPS5 最新 release 11-25（3057d08）入库
+- 用户 Downloads 目录的 `KytyPS5-2026-11-25-3057d08-Windows-x64.zip`：27,646,213 B，
+  sha256 `886073cc…d1fb1` 与 S4 阶段 gh-proxy 拉取件一致（即 build/kyty 已解压的同一构建）。
+- 版本对比：11-25（git 3057d08）与 11-06（git 9a29dc6）同为 ver 0.3.0，仅增量修复；
+  CLI 不变（`--game <dir|elf|zar>`），**仍无 pkg 支持**，解密 dump 依赖不变。
+- 归档至 `tools/KytyPS5-releases/`，release 序列完整覆盖 2026-07-31 → 2026-11-25。
