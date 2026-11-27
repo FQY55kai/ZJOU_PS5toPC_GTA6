@@ -666,3 +666,15 @@
 - 外部佐证：ps5-pkg-decryption（BreadJS）明示 pkg 解密必须经真机 PSP 芯片；tekqart dump 教程证实社区 540GB dump = 破解机 FTP 直拷 /mnt/sandbox/PPSA38500/app0 明文目录，无解密步骤。
 - 163/腾讯/TLDR 多方报道（11-25 起）：dump 含解密 eboot.bin + sce_sys + 游戏资源，Reddit 已验证 FW 11.60 越狱机可运行（正版要求 14.23）；Take-Two 正对移植社区发 DMCA。
 - 结论：pkg 在 PC 端解包路线正式关闭（密钥物理隔离 + 社区无先例）；获取 dump 只剩 ①分享内找文件夹形态资源 ②自制 FTP dump。Kyty 线维持等 dump 状态。
+
+## 2026-11-28 03:25 BT dump pipeline run (overnight, auto)
+- BT0: BT 下载进行中，NTFS VDL=191.7 GiB（17:13 起约 10 小时），`.bt.xltd` 未消失，等待完成。
+- BT3: 提前完成模拟器定位（不依赖下载）。tools/ 下找到两份 kyty_emulator.exe：
+  - `KytyPS5-bin-20261106/kyty_emulator.exe`（27 MB，2026-11-06，**选定**，最新构建）
+  - `KytyPS5-Yotei-v014/.../kyty_emulator.exe`（29 MB，2026-11-04，备选）
+  已写入 state 标记 BT3.done + BT3.kyty-path。
+- BT4 备用工具预检：`tools/ps5rs-master` 存在且为 Rust 工程（Cargo.toml + crates/），
+  若 eboot.bin 为 SELF 格式需先 cargo build 出提取器转 ELF；届时按其 README 操作。
+- 解压脚本 extract_bt_dump.py 与 7-Zip（C:\Program Files\7-Zip\7z.exe）就绪，
+  BT0 完成后下一轮自动触发 BT1（分离进程解压，密码已知，幂等防重入）。
+- 磁盘：C 盘剩 1.3T，解压产物约 200-540G，容量充足；7z 源文件保留不删。
