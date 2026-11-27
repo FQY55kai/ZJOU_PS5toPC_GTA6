@@ -156,3 +156,16 @@
   否则卡 "please wait" —— 再次印证 kstuff PPR 机制是 dump 工作流的核心。
 - loader 经 libScePad 劫持向游戏进程注入 prx；解压分析于 `PS5/analysis/ps5menu/`。
   纯主机侧工具，非 PC 移植素材，留作 GTA VI 进程内存布局参考。
+
+## 2026-11-27 12:18 Xbox 侧新分支试跑：victory-scarlett-3070 (scarlett-fox)
+- 用户提供的 scarlett-fox 分支源码（RTX 3070 8GB fork，谱系 Marvisak/VIctory → fxceless →
+  Op-lite/victory-scarlett → 本 fork），11-27 11:09 打包。
+- `cargo build --release --bin victory --locked` 51.7s 成功（victory.exe 11.7MB）。
+- 脚本 play-3070.ps1 在 PS 5.1 被 `Get-ChildItem Env:VICTORY_*` ArgumentException 咬死
+  （本机已知 bug），改用手写 Start-3070-GTA6.cmd（CRLF，完整 70+ VICTORY_* 开关直译，
+  MipDrop=0 适配 4080 16GB）。
+- `victory run game_scarlett_master.exe --execute --console series-s` 运行稳定：
+  0 错误/panic，渲染循环持续（port 1 in-place 185MB graphics heap、每帧 3391 descriptor
+  slots、async submit 0.8-1.0ms/帧、60fps 帧间隔档生效）。
+- 对照 coolfox（cool_fox 谱系）：两系谱并存，scarlett 系含 8GB 显存优化
+  （TEXTURE_MIP_DROP 描述符堆上限修复、R9G9B9E5→R11G11B10 紫光修复、wave32 体积光修复）。
