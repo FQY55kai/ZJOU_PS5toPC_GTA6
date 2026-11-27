@@ -135,3 +135,16 @@
   sha256 相同 440846e1…，重复下载）含 **eboot.bin 186MB（普通版+PS5Pro 两份，疑似解密降级版）**、
   `sce_module/`、`param.json`、`fakelib/libSceAgc*.sprx` 等 —— **待解压验证 eboot.bin 是否 ELF**
   （若是，KytyPS5 `--game <elf>` 有戏，虽缺游戏资源）。
+
+## 2026-11-27 11:47 ★ 里程碑：KytyPS5 加载并执行 GTA VI SELF（首次）
+- 降级补丁 rar 里的 `eboot.bin`（195,555,354 B，SELF `4F153D1D`，34 段，内嵌 ELF @0x1A0）
+  喂给 KytyPS5 v0.3.0：`kyty_emulator --game eboot.bin`。
+- **全部子系统初始化成功**（Memory/FileSystem/Graphics/Audio/Controller/Network），
+  SELF 被映射进 guest 地址空间，**游戏代码开始执行**（guest PC 0x00000009xxxxxxxx）。
+- 游戏调用 libc 导入（NID 3GPpjQdAMTw / Nmtr628eA3A / ZE6RNL+eLbk）1024 次 hit
+  unresolved stub，最终宿主异常在 `src/loader/runtimeLinker.cpp:718`（exit=65）。
+  属预期：单独 eboot.bin 无 sce_module 上下文、HLE 未挂全。
+- **结论：加载器 → SELF 解析 → 模块映射 → guest 代码执行链路全通**。等 540GB dump
+  到货后从"unresolved import"开始补 HLE 即是移植主战场。
+- 夸克网盘正在下载 dump 分卷（`Downloads\Grand Theft Auto VI [PPSA38500] [v01.002]`，
+  6 卷并行已 960MB+）；已建每小时自动化监控，分卷齐后自动解压+首启+报告。
