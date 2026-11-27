@@ -713,3 +713,22 @@
      ③参照 11-27 记录该 NID 曾以 libkernel NID 形式出现在 B4 backport 线，可交叉比对。
   4. dump 作者 README 确认：FW 11.60 最佳，AMPR-Emu-NG 推荐但仍需修复。
 - BT5：本轮起 push 恢复（先前 connection reset 为网络问题）；rebase 掉与远端 635749f 的重复条目后合并推送。
+
+## 2026-11-28 07:04 Kyty 2026-11-26 新版实测：libkernel NID 卡点已解，推进到新卡点 VideoOut NID
+
+- 背景：上轮结论预留的解锁条件成立——KytyPS5 上游 11-06 后有多批更新，
+  实测最新官方构建 **KytyPS5-2026-11-26-61db2f8**（Windows-x64.zip，27.6MB，
+  经 gh-proxy.com 镜像下载，ghfast.top 连接重置失败）。
+- 首启测试（`--game GTAVIPS5` dump，日志 logs/bt-boot-20261126-61db2f8.log）：
+  - **上轮卡点 `yu17wG8L5FI[libkernel_v1][libkernel_v1.1]` 已被上游修复**，不再出现。
+  - 启动推进更远：Config/Log/Pthread/Profiler/Network/Memory/FileSystem/Controller/Audio/Graphics
+    全部初始化成功，`version = 13`，随后在 **`pA8xxaySl7A[VideoOut][VideoOut][Func]`**
+    未解析导入 stub 上 guest 调用崩溃：host exception runtimeLinker.cpp:702，exit=65（2 秒内）。
+- **结论（留给用户）**：
+  1. dump 兼容性进一步确认，卡点从 libkernel 单点收敛为 VideoOut 单点——
+     Kyty 尚未实现 VideoOut NID `pA8xxaySl7A` 的 HLE。
+  2. 同类模式（unresolved stub → guest 调用 → host 崩），修复路径与上轮同：
+     等上游补 HLE，或自行在源码 HLE 表加该 NID stub。
+  3. 本轮仅测 1 个新构建（合法新版本，非盲试），不再继续尝试其他方案；
+     下次自动化运行仅当上游出现 >11-26 的新版本时再测。
+- 11-06 构建保留于 tools/KytyPS5-bin-20261106，新构建位于 tools/KytyPS5-20261126（均已解压可跑）。
