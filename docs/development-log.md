@@ -678,3 +678,8 @@
 - 解压脚本 extract_bt_dump.py 与 7-Zip（C:\Program Files\7-Zip\7z.exe）就绪，
   BT0 完成后下一轮自动触发 BT1（分离进程解压，密码已知，幂等防重入）。
 - 磁盘：C 盘剩 1.3T，解压产物约 200-540G，容量充足；7z 源文件保留不删。
+
+## 2026-11-28 05:30:34 BT dump pipeline run
+
+- BT0: 2026-11-28 05:30:34 download-complete
+- BT3: 2026-11-28 03:22:43 C:\GTAVI\PS5\tools\KytyPS5-bin-20261106\kyty_emulator.exe
