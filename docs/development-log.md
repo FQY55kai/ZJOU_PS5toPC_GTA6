@@ -683,3 +683,11 @@
 
 - BT0: 2026-11-28 05:30:34 download-complete
 - BT3: 2026-11-28 03:22:43 C:\GTAVI\PS5\tools\KytyPS5-bin-20261106\kyty_emulator.exe
+
+## 2026-11-28 05:55:58 BT dump pipeline run
+
+- BT0: 2026-11-28 05:30:34 download-complete
+- BT1: 2026-11-28 05:45:58 rc=0
+- BT2: 2026-11-28 05:45:58 eboot=GTAVIPS5\eboot.bin files=104
+- BT3: 2026-11-28 03:22:43 C:\GTAVI\PS5\tools\KytyPS5-bin-20261106\kyty_emulator.exe
+- BT4: 2026-11-28 05:55:58 exited rc=321
