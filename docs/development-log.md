@@ -180,3 +180,9 @@
   4. VICTORY_CARD_BUFFERS_MB 1024→512
 - **run3 现状**：启动 90s 0 错误，显存 7698/11227MB=69%（run2 同期 86%），纹理流送中。
 - 新增免预热直启脚本 Start-3070-GTA6-run.cmd（缓存热跳过 21min prewarm）。
+
+## 2026-11-27 run3→run5 卡顿排查：CARD_BUFFERS_MB=512 是罪魁
+- run3（CARD_BUFFERS 1024→512 后）持续 4-6fps：GPU 时间 140-185ms/帧（run2 同期仅 0-5ms），buffer copies 流量 90-195MB/帧（run2 62-65MB 翻倍）。分块减半导致 GPU 端复制碎片化开销暴涨。
+- run4 回滚 CARD_BUFFERS_MB=1024：GPU 时间归零，帧率 3→16.6fps 爬升（被中断验证充分）。
+- run5 最终组合（FRAME_INTERVAL=33.3 + TEXTURE_BUDGET_MB=6144 + ROOM_PERCENT=80 + CARD_BUFFERS=1024）：稳定 21-26fps（38.4ms/帧，preparing 25.9ms 其中 copies 11.5ms），流送完成，显存受控。
+- 结论：防崩三参数（30fps/预算/余量）+原缓冲区大小 = 可玩配置；帧时 46.7→38.4ms。
