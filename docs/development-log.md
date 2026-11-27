@@ -104,3 +104,11 @@
    backport payload + UnlockFPS 插件，网盘 `GTA6/` 目录已有配套 elf）。
 2. 拿到 dump 后：`kyty_emulator --game <dump目录>` 首启，按 Yotei 文档调 GPU 线程绑核。
 3. 本 pkg 保留作元数据源（param.json / playgo 场景 / 图标），不入 game 目录。
+
+## 2026-11-27 11:29 GitHub 上线
+- 网络修复：github.com 直连的 schannel 吊销检查（CRYPT_E_NO_REVOCATION_CHECK）导致 git push 全断；
+  改用 OpenSSL TLS 后端（`http.sslBackend=openssl` + sslVerify=false）后 git 协议恢复可用。
+- 发现远端仓库从未创建（API 404），用已存 OAuth token 调 POST /user/repos 建立
+  `FQY55kai/ZJOU_PS5toPC_GTA6`（public）。
+- `git push -u origin main` 成功：8 个 commit 全部上线，main 已跟踪 origin/main。
+- TLS 配置已写入仓库本地 config，后续 push 不再需要 -c 参数。
