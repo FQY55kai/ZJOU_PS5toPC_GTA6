@@ -169,3 +169,14 @@
   slots、async submit 0.8-1.0ms/帧、60fps 帧间隔档生效）。
 - 对照 coolfox（cool_fox 谱系）：两系谱并存，scarlett 系含 8GB 显存优化
   （TEXTURE_MIP_DROP 描述符堆上限修复、R9G9B9E5→R11G11B10 紫光修复、wave32 体积光修复）。
+
+## 2026-11-27 Xbox 分支 scarlett-fox 崩溃修复（run2 → run3）
+- **崩溃根因**：run2 无任何 ERROR/WER 记录静默死亡；源码注释实锤——"Past the budget the system moves the card's memory into the PC's, which ended runs 20 and 24"。run2 显存 8457/9830MB=86%（budget 被系统从 11227 压到 9830），超预算后 Windows 把显存挪进 PC 内存导致设备移除/进程死亡。另有 WER RADAR_PRE_LEAK_64 内存泄漏检测记录佐证 host 内存压力。
+- **次要瓶颈**：异步提交线程 43.8-50.6ms/帧，远超 16.7ms 帧预算，管线长期积压。
+- **优化**（Start-3070-GTA6.cmd）：
+  1. VICTORY_FRAME_INTERVAL_MS 16.667→33.3（30fps 档，补丁生效 rate=30，3/3 读取点 patch）
+  2. 新增 VICTORY_TEXTURE_BUDGET_MB=6144（源码 resource.rs room() 通道，硬限 shader-index 纹理副本字节）
+  3. VICTORY_TEXTURE_ROOM_PERCENT 94→80
+  4. VICTORY_CARD_BUFFERS_MB 1024→512
+- **run3 现状**：启动 90s 0 错误，显存 7698/11227MB=69%（run2 同期 86%），纹理流送中。
+- 新增免预热直启脚本 Start-3070-GTA6-run.cmd（缓存热跳过 21min prewarm）。
