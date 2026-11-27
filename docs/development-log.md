@@ -649,3 +649,15 @@
 | **FQY55kai/ZJOU_PS5toPC_GTA6** | PS5 线开发日志、pkg 格式分析（pkg-format-analysis.md）、分析脚本（analyze_fih/openssl_xts/verify_keys）|
 | **FQY55kai/ZJOU-JWXT-PC** | 静态重编译预研（oracle/lift/branch/diff/progress/why，MIT）|
 
+
+## 2026-11-27 16:43 backport-B4 包分析 + Kyty 二次实测（libc 卡点推进）
+- 新文件 `PPSA38500-backport-4xx-10xx-B4-kstuff1.15test3.rar`（68.6MB）：B4 版降级补丁，
+  含 eboot.bin（195,555,354B，与 FW900 包同一文件）+ **sce_module/libc.prx**（FW900 包没有）+
+  fakelib2 六件套 + 主机侧工具（ShadowMountPlus 1.7b12 / attrpub6±restore / UnlockFPS v1.14）。
+- **KytyPS5 二次实测**（--game 指向解压后的 PPSA38500 目录，官方 11-25 构建）：
+  unresolved imports **1024 次 → 1 次**（仅剩 libkernel NID `yu17wG8L5FI`）；
+  Title ID PPSA38500 已被读取；失败点 runtimeLinker.cpp 718→702，
+  guest 代码执行更深，撞 guest fault 读 0xFFFFFFFFFFFFFFFF（缺 app0 数据文件的典型表现）。
+- 结论：libc.prx 是 PC 线活素材；剩余卡点 = libkernel NID HLE + 540GB 数据文件。
+- 另：夸克 540GB 下载实为同字节 pkg（221,028,009,318B 与百度件一致）的 rar 重打包，
+  非解密 dump——已确认重复，等用户在夸克重新选 dump 文件夹。
