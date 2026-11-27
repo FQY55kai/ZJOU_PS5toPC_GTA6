@@ -104,17 +104,3 @@
    backport payload + UnlockFPS 插件，网盘 `GTA6/` 目录已有配套 elf）。
 2. 拿到 dump 后：`kyty_emulator --game <dump目录>` 首启，按 Yotei 文档调 GPU 线程绑核。
 3. 本 pkg 保留作元数据源（param.json / playgo 场景 / 图标），不入 game 目录。
-
-## 2026-11-27 11:26:17 autonomous run
-- S1: 2026-11-27 09:48:02 report existed
-- S2: 2026-11-27 11:30 debug-fih
-- S3: 2026-11-27 11:26:17 extractor-pending
-- S4: 2026-11-27 09:56 done: KytyPS5-2026-11-25-3057d08-Windows-x64.zip via gh-proxy.com, sha256 verified, extracted to build/kyty
-- S5: 2026-11-27 09:56 blocked: no dump dir (S3 blocked); kyty_emulator at build/kyty ready
-
-## 2026-11-27 11:26:24 autonomous run
-- S1: 2026-11-27 09:48:02 report existed
-- S2: 2026-11-27 11:30 debug-fih
-- S3: 2026-11-27 11:26:24 skipped-image-key
-- S4: 2026-11-27 09:56 done: KytyPS5-2026-11-25-3057d08-Windows-x64.zip via gh-proxy.com, sha256 verified, extracted to build/kyty
-- S5: 2026-11-27 09:56 blocked: no dump dir (S3 blocked); kyty_emulator at build/kyty ready
