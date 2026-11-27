@@ -119,3 +119,19 @@
 - 版本对比：11-25（git 3057d08）与 11-06（git 9a29dc6）同为 ver 0.3.0，仅增量修复；
   CLI 不变（`--game <dir|elf|zar>`），**仍无 pkg 支持**，解密 dump 依赖不变。
 - 归档至 `tools/KytyPS5-releases/`，release 序列完整覆盖 2026-07-31 → 2026-11-25。
+
+## 2026-11-27 11:42 kstuff-1.15 载荷分析 —— PPR 机制拼图闭合
+- 新到文件：`kstuff-1.15-dr-test3-stable.elf`（1,927,240 B，x86-64 ELF，entry 0x100fb8，
+  sha256 6c3758c2…6ecf5，微信转来的 PS5 用户态越狱载荷）。
+- 功能（strings 证据）：注入 shellui/VSH 后做 **PPR patch**（含 A53 协处理器补丁、
+  SDBGP/A53 mailbox 事务、固件 profile 匹配、devkit/testkit 检测），实现 **Plaintext PPR**
+  —— 让主机接受"明文认证"的包；另有 exFAT/save-data 挂载、dlc_emu、automount 控制。
+- **关键拼图闭合**：我们 pkg 外层 superblock 的 seed `PPRPLAIN-NOAUTH!` 正是 kstuff
+  "Plaintext PPR" 模式的配对标记 —— 转储工具生成"明文认证"FPKG，破解机上的 kstuff patch
+  A53 验证器使其接受。社区不解 EEKPFS 的 RSA，而是 patch 主机端验证器；
+  540GB dump = 明文挂载后的 app0。
+- PC 端结论不变：无越狱主机就无法产生明文，pkg 依然只能在主机上被消费。
+- 同一压缩包（`GTA6/…/GrandTheftAutoVI_PPSA38500_FW900_v01.002.001.rar`，三个 rar
+  sha256 相同 440846e1…，重复下载）含 **eboot.bin 186MB（普通版+PS5Pro 两份，疑似解密降级版）**、
+  `sce_module/`、`param.json`、`fakelib/libSceAgc*.sprx` 等 —— **待解压验证 eboot.bin 是否 ELF**
+  （若是，KytyPS5 `--game <elf>` 有戏，虽缺游戏资源）。
