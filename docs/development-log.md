@@ -691,3 +691,25 @@
 - BT2: 2026-11-28 05:45:58 eboot=GTAVIPS5\eboot.bin files=104
 - BT3: 2026-11-28 03:22:43 C:\GTAVI\PS5\tools\KytyPS5-bin-20261106\kyty_emulator.exe
 - BT4: 2026-11-28 05:55:58 exited rc=321
+
+## 2026-11-28 05:45 BT 流水线夜跑完成：dump 全量解压 + Kyty 首启实测（卡点收敛到单一 libkernel NID）
+- BT0 完成：GTAVIPS5.7z 下载完毕（191.7 GiB，11-27 17:13 起 ~12.3h，均速 ~4.4 MB/s）。
+- BT1 完成：7z 解压 exit=0，**104 文件 / 540.67 GiB**，约 13.5 分钟（NVMe 写入峰值 ~1 GB/s）。
+  eboot.bin 位于 dump 顶层（186.5 MiB，明文 ELF——Kyty 直接加载成功，无需 ps5rs SELF→ELF 转换）。
+  dump 结构：`GTAVIPS5/{eboot.bin, data/ttdb, pack/*, sce_module, sce_sys}`；
+  sce_module 自带 **libc.prx + libSceNpCppWebApi.prx**（与 11-27 B4 包素材一致）。
+- BT2 完成：docs/dump-inventory.md 已写入（104 文件 / 540.67 GiB / eboot 位置）。
+- BT4 首启（两个构建各测一次，结论一致）：
+  - KytyPS5-bin-20261106（官方构建 9a29dc6）：Graphics 初始化成功 → 加载 eboot → 
+    **Unresolved import stub `yu17wG8L5FI[libkernel_v1][libkernel_v1.1]`** → guest 调用 stub → 
+    host 空指针崩溃 runtimeLinker.cpp:718，rc=321。
+  - 备选 KytyPS5-Yotei-v014：**同一 NID、同一失败点**，exit=65。
+- **结论（留给用户）**：
+  1. dump 完好且与 Kyty 兼容（title 读取、图形栈、libc.prx 加载均通过，unresolved 从历史 1024 降到 1）。
+  2. 唯一卡点 = Kyty 尚未实现 libkernel NID `yu17wG8L5FI` 的 HLE，两个官方构建均缺，
+     非本机配置/dump 格式问题。SELF 转换（ps5rs）与固件版本无关紧要——eboot 已是明文 ELF。
+  3. 可行方向：①盯 KytyPS5 上游新版本是否补该 NID；②自行在 Kyty 源码 runtimeLinker/HLE 表
+     中为该 NID 加 stub（需定位其真实符号，dump 作者提示 11.60 固件 + AMPR-Emu-NG 背景）；
+     ③参照 11-27 记录该 NID 曾以 libkernel NID 形式出现在 B4 backport 线，可交叉比对。
+  4. dump 作者 README 确认：FW 11.60 最佳，AMPR-Emu-NG 推荐但仍需修复。
+- BT5：本轮起 push 恢复（先前 connection reset 为网络问题）；rebase 掉与远端 635749f 的重复条目后合并推送。
