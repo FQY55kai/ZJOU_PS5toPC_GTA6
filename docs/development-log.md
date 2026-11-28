@@ -778,3 +778,43 @@
 ### 配置基线（复现）
 kyty_clean.exe --game games/GTA6-dump/GTAVIPS5 --printf-direction File --printf-output-file <log>
 eboot.bin 需含两处 NID patch（BlendSpace/ClearFlipMaster）+ sce_sys/param.json flexibleMemorySize=256MB
+
+## 2026-11-28 08:40 自动轮：旧结论两条被推翻（匹配假象）+ flip 路径源码链路闭合
+
+### 状态
+- 上游无新构建：releases 页最新仍 **2026-11-26-61db2f8**（26 Nov 23:01），同日 b3d8c04/9cbaf94 均更早。未测。
+- git：上轮积压 798dc35 与 731004a 已全部在 origin/main，本地与远端同步，无 push 积压。
+
+### 源码/数据修正（本轮最重要）
+上一轮"RELEASE_MEM 计数 0 / flip 块总数 0"**部分是字符串匹配假象**，重新核实：
+1. **RELEASE_MEM 大量存在**：4058/5278 个缓冲含 `IT_RELEASE_MEM`（0xC0064900，每帧每 DCB 都在发 EOP）。
+   3935 个 DCB 以 RELEASE_MEM 作为首包（帧间 EOP 写回）。
+2. `SQ_THREAD_TRACE_USERDATA_2`(0x342) 写入存在于 **3159 个**缓冲，但值全是 AGC 内部包标签
+   （0xC8010010 / 0xCB000001 / 0x55C00200 / 0xCB000000 等），**无一个 0xC7 顶字节（USERDATA_TAG_FLIP）**
+   → "flip 块从未被录制进任何 DCB"这一结论经修正后**仍然成立**。
+
+### 命令流健康度（排除中断假设）
+- 日志 0 条 EXIT / EXIT_NOT_IMPLEMENTED / unknown PM4 packet。
+- draw 命令在流：IT_DRAW_INDEX_INDIRECT(0xC0042700)×4002、IT_NUM_INSTANCES(0xC0012D00)×5105。
+- EVENT_WRITE(OP 0x46)×6881，event id 0x407/0x40F/0x410。
+- → 本轮假设"命令流在未实现 opcode 处被 EXIT 打断"**否定**。
+
+### flip 源码链路（KytyPS5-main, 2026-11-25 源）
+- 游戏导入 **AgcDcbSetFlip（YUeqkyT7mEQ，eboot .dynstr 实证 1 处）**；AcbSetFlip 未导入。
+- 链路：游戏调 AgcDcbSetFlip → `set_flip`（agc.cpp:4016）写 19-dword flip 块进 DCB
+  （SET_UCONFIG_REG R=1 + USERDATA_2 + tag 0xC7…|flip_mode<<8|buf_idx<<3|0x7）→
+  pm4Handlers CpOpSetUconfigReg 识别 USERDATA_TAG_FLIP → CpFlip → cp.Flip →
+  sync.cpp PrepareVideoOutFlip → videoOut.SubmitFlipFromGpu → 触发 flip 事件。
+- dump 中无 0xC7 标签 = 游戏在 dump 窗口内**从未调用 AgcDcbSetFlip 成功走到录制**。
+
+### 本轮结论：卡点收敛为"帧尾 flip 录制门槛未达成"
+渲染循环每帧正常发 draw + EOP（RELEASE_MEM 写回），但主循环不进入录 flip 分支。两个嫌疑（按优先级）：
+1. **RELEASE_MEM label 写回对 guest 不可见**：ReleaseMem（graphicsRun.cpp:913）的写回走
+   `TryWriteBacking`/`IsRegionGpuModified`/`HasGpuDirtyBytes` 三重判定，任一误判则 label 落错位置，
+   CPU 轮询永不满足 → 帧不结束 → 不录 flip。
+2. **EVENT_WRITE 事件 id（0x407/0x40F/0x410）host 侧未触发**游戏等待的查询/事件。
+
+### 下轮假设（一次一个）
+- 校验 RELEASE_MEM 写回地址（buffer[2]&~3 | buffer[3]<<32）与 ACQUIRE_MEM poll 地址的闭环，
+  并核对 EVENT_WRITE 处理器对 0x40F/0x410 的实现（CpOpEventWrite, pm4Handlers.cpp:862）。
+- 若闭环断裂在写回路径，方向 = 在 ReleaseMem 的写回分支加诊断或对照 EVENT_WRITE→事件队列触发链。
