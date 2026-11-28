@@ -995,3 +995,40 @@ kyty + --graphics-debug-dump --perf-overlay 8 分钟 + auto_confirm.py(20s) + 30
 ### 环境恢复
 - 全部 stub 已按清单删除（stub-manifest.txt / stub-manifest-late.txt 留档），dump data/ 树恢复原始状态（仅 ttdb）。
 - kyty 两轮实验日志：logs/auto-stubtest-20261128-112618.log、auto-stubtest2-20261128-114244.log（勿入库）。
+
+## 2026-11-28 13:00 自动轮：序列映射假设证伪 + RPF9 真实头部字段落地（blocker ② 移除，卡点收敛为纯名称映射）
+
+### 上游 / git
+- 上游无新构建（releases 最新仍 KytyPS5-2026-11-26-61db2f8）；git 本地与 origin 同步，无积压。
+- 本轮未跑游戏（无新版本可测，转入源码/数据分析线）。
+
+### 假设①「序列映射」证伪（本轮实验）
+- 实验：从 auto-scene-20261128-100030.log 提取 2493 条缺失路径的首次出现序（scripts/seq_mapping_test.py，
+  结果存 logs/seqmap-result.json），与 data_concat.rpf 38 个嵌套头偏移序对齐检验。
+- 结论：resolve 顺序是**需求驱动**的（首轮 L118409-118419 就跨 data/textures/models 三容器交错请求，
+  尺寸序与请求序无对应关系），简单序列映射不成立。需换指纹法。
+
+### 重大进展：RPF9 真实头部字段落地（GTA6-Asset-Info, jaylikesbunda/structure/01-rpf9-container.md）
+- 上轮把 offset+4 误读为 entry_count，**实为 toc_end**（TOC 绝对结束、载荷从此开始）。
+  真实字段：0x24=文件数、0x10=archive 唯一 64 位指纹、0x28=key_id、0x2C=variant（实测 00070F01/00070F02）。
+- **架构性认知（移除 blocker ②）**：TOC 加密只挡"我们"，**游戏自身持有 TOC 密钥、会自己解密解析嵌套 archive**。
+  只要嵌套 archive 原始字节落到正确路径，游戏即可 open→解密 TOC→解析。文件回退路线的唯一卡点 = 名称映射（①）。
+- data_concat.rpf 41 个头部全字段指纹表已存 logs/seqmap-headers.json（scripts/rpf9_fingerprint.py）：
+  - **13-archive 同构家族**（#12-24）：toc_end=58576、fcount=1115、key_id=5A5B4C6F、variant=90F02、
+    各 ~34MB——疑似分区域元数据包族。
+  - **#39 大块头**：570MB、fcount=2896、name_bs=178576、key_id=ABE9B070（新 key，文档只记录 4 种，
+    本机实测 5 种：C0A92754/DA72573E/5A5B4C6F/D98004D5/ABE9B070）。
+  - 两个 fcount=1 的 128KB archive（#27/#29）+ 多个 fcount≤7 小 archive，是语义匹配的优先候选。
+- RageForge 名称映射再确认关闭：scaleform/legal/ui_startup/settings/conversations/signfonts/animimgfilters
+  七关键词 search 全部 0 命中。
+
+### 载荷嗅探（未命中，留方法记录）
+- 按 toc_end 起扫 zlib(0x78) 0 命中；raw deflate 大量假阳性（重复字节也能"解出"）。
+  说明每文件流偏移存在加密 TOC 里，不能从 toc_end 直接定位；需整 archive 严格 zlib 校验扫描
+  （验头校验位+解压长度合理性）或先弄清 GTA6-Asset-Info 所述 64KiB 块链的定位规则。
+
+### 下轮计划（一次一个）
+1. **fcount 指纹映射**：data 组 25 条缺失路径按语义预估条目数（legal/scaleform 小、字体库小、
+   ui_content 大），与 38 个 fcount+size 二维指纹匹配，先落盘 2-3 个高置信 archive 做 kyty 复跑。
+2. 整 archive 严格 zlib 扫描小 archive（#27/#29 等），用解压内容（pmt 元数据文本）反推名称。
+3. 若映射成功 ≥80%，落盘全部 data 组成员 → kyty + auto_confirm 复跑验证世界加载推进。
