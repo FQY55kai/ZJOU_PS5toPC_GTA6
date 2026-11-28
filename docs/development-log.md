@@ -1169,3 +1169,32 @@ kyty + --graphics-debug-dump --perf-overlay 8 分钟 + auto_confirm.py(20s) + 30
 - **153100 复跑 resolve 印证雕刻生效**：120558 行日志仅 4 条 open-fail（playgo-chunk.dat / playgo-chunks*.xml / Data\chunkmanifest，均启动期元数据），零 levels/anim/pack 缺失——与 round2（33 条）方向一致，21 整档雕刻已消除世界流送缺失。
 - **166s 后 "Window 4 closed"→"Event: quit"(exit 0) 系外部干扰非崩溃**：日志尾部大量 Mouse motion 至 [1226,0]（窗口右上角关闭钮）；查进程见 3+ 个 auto_confirm.py 并发（570s JL / 170s JL / 本轮 600s J）互抢焦点、鼠标乱飞，判为多按键循环并发误关窗口，非游戏看门狗/fault。
 - **操作教训（务必遵守）**：每轮启动前先 `tasklist | grep -i kyty` + 查 auto_confirm 进程；有并行会话在跑时不重复启动 kyty/按键循环，只做只读分析，避免多实例互扰。本轮探测轮（auto-probe1，pid 31488）属并行会话，未触碰。
+
+## 2026-11-28 16:40 自动轮：probe/bisect 实验司法复核——#37→scaleform_startup 证伪，faulting 档锁定 5 候选，scaleform_startup 需换线索源
+
+### 上游 / git / 环境
+- 上游 releases 复查：最新稳定仍 **KytyPS5-2026-11-26-61db2f8**（GitHub 顶部 b3d8c04 为其父提交，非更新）。无新构建，未下载未重跑。
+- 本轮启动时无 kyty / auto_confirm 进程，无并发冲突。并行会话 15:46 后停止活动，遗留 3 个未跟踪脚本（auto_confirm_victory.py、bisect_carved.py、launch_victory_tuned.py）本轮一并入库。
+
+### probe1/probe2 交叉复核（本轮新增分析，前轮未记录结论）
+- **probe1**（auto-probe1-153035，6 探测档全放：#37→scaleform_startup、#4→settings、#2→signfonts、#1→conversations、#7→treewinddata、#28→drawablesamplers）：47 missing，**t=2.376s guest fault**（read -1，runtimeLinker.cpp:702，Pthread id=49）。
+- **probe2**（auto-probe2-153302，清理后仅 scaleform_startup 留盘）：31 missing、**无 fault**、跑至 controller rumble（游戏存活）。
+- **推论 A（faulting 档锁定）**：probe1 与 probe2 唯一差异是其余 5 档 → **导致 fault 的错误内容档 ∈ {#1, #2, #4, #7, #28}**；scaleform_startup(#37) 单独落盘不致崩。
+- **推论 B（#37 假设证伪）**：probe2 中 scaleform_startup.rpf 成功 resolve（不在 31 条 missing 内）但画面仍黑（play-shots probe2 截图）→ **#37 内容可被解析但不是真 startup UI 档**。黑屏根因未消除。
+- **bisect-1..16**（bisect_carved.py 恢复 batch1 全部 16 档，154705）：52 missing、75s 存活、**仍黑屏** → batch1 全落盘不足以点亮启动 UI。
+- **bisect-none 基线**（全部雕刻清理，154410-154623 ×4）：2419 missing、游戏存活 75s+ → 再次印证"缺文件可活、错格式必崩"铁律。
+
+### round2 权威缺失清单（33 条，全部雕刻落盘后）分类
+- data 组 9：animimgfilters.pmt、drawablesamplers、signfonts_metadata、settings、treewinddata、**scaleform_startup**、updategraphs、jlimits(anim)、conversations(audio)。
+- levels 组 13：audio_metadata、exterior_occlusion0-9+mapswaps、worldmap×2、minimap×2、animscript_master。
+- packs/base 组 8：gamemodes_metadata、gamemodeasset_metadata、face_engine、secondary_motion×5。
+- probe1 时间线证据：fault 前最后请求为 minimap/textures 组 resolve missing → 崩溃点在 boot 文件请求之后、UI 初始化期间。
+
+### packs_concat 60 档签名审读（logs/packs-archives.json）
+- 内容定性：**角色/服装/面部模型包**（SKEL_/FACIAL_/armor/lashescat/cstreamer），大档 1.5GB(fcount=21897)、1.09GB(fcount=6154) 等。
+- 与缺失 packs/base 8 路径语义部分吻合（#20 FACIAL_/Bone002 疑 face_engine），但**无 gamemodes/secondary_motion 直接字符串证据**，置信度不足 → 按"缺比错安全"不落盘。
+
+### 结论与下轮假设（一次一个）
+- scaleform_startup 不在 data_concat 已鉴定集（SWF 魔数全库仅 #32=loading_screens；#37 探测已证伪）→ **换线索源**。
+- **下轮假设：扫描 data.rpf 自身嵌套 9FPR 头表**。依据：batch2 从 data.rpf@0x40000 成功雕刻 models.rpf（载荷明文"车辆部件/道具/INPUT_*"），证明 data.rpf 内嵌套档可定位可解析。方法：对 data.rpf 全量扫 9FPR 头 → 建 offset/size/fcount 头表 → 与 data 组缺失路径（settings/scaleform_startup/signfonts/updategraphs/treewinddata/drawablesamplers 等）做 fcount+size 语义匹配 → 高置信档整档落盘 → kyty + auto_confirm 复跑看启动 UI。
+- Victory 路线旁注：victory-tuned（profile12 全参数档）16 帧即被外部关窗（并发干扰），无有效 FPS 数据；Victory-NVIDIA-1.3.10 DLSS 帧生成脚本（play-gta6-framegen.ps1，2560x1440 DLSS Quality + FG 2x）已就位未验证。下轮若无并行会话可跑 launch_victory_tuned.py + auto_confirm_victory.py 测 3D 场景 FPS（18→30 主战场）。
