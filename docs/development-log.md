@@ -732,3 +732,28 @@
   3. 本轮仅测 1 个新构建（合法新版本，非盲试），不再继续尝试其他方案；
      下次自动化运行仅当上游出现 >11-26 的新版本时再测。
 - 11-06 构建保留于 tools/KytyPS5-bin-20261106，新构建位于 tools/KytyPS5-20261126（均已解压可跑）。
+
+## 2026-11-28 早晨：BT dump 四层攻克实录（dump 就绪 → GPU 管线启动）
+
+### 前置
+- 迅雷 BT 下载 GTAVIPS5.7z 191.7GiB 完成（05:30）→ 解压 540.7GiB/104 文件 → eboot.bin 定位（games/GTA6-dump/GTAVIPS5/）
+- KytyPS5 官方构建 KytyPS5-2026-11-26-61db2f8（Windows x64）
+
+### 攻坚链（每层用 NID 算法反查 + 等长替换）
+1. `yu17wG8L5FI[libkernel]` = **sceKernelHasTrinityMode**（NID 算法 SHA1+Base64 三重验证；PS5PCEM 公开文档交叉确认）→ 新版 Kyty 已内置，无需处理
+2. `pA8xxaySl7A[VideoOut]` = **sceVideoOutSetGlobalBlendSpace**（AnyPS5 源码池 224 名反查）→ AnyPS5 实现为纯 no-op。exe 字符串池 patch 实证无效（注册表非池数据）→ **改游戏侧**：eboot .dynstr 等长替换 `pA8...#Y#W` → `w7Ipp9Xl7hg#Y#W`（VideoOutAllowOutputResolutionWqhdDetection，Kyty 实现=handle 校验+return OK）
+3. `T0ynQY3mH-0[VideoOut]` = **sceVideoOutClearFlipMaster** → 同法替换为 `T4ucGB8CsnM#Y#W`（VrrUnpegFromFixedRate，同样只读 handle + return OK）
+4. **6.2GB 直接内存分配失败**（AllocateDirectMemory [Fail]）：物理池重放模拟显示已分配 6184MB，剩最大连续 6104MB，**缺口 132MB**。dump 无 param.sfo/param.json → 注入 `sce_sys/param.json`：`{"kernel":{"flexibleMemorySize":268435456}}`（flexible 448→256MB，direct 12288→12480MB）→ 分配成功，[Fail]=0
+
+### 当前状态
+- 游戏运行 270s：GuestAddressSpace/Memory/FileSystem/Graphics/Audio 全部初始化，4K 显示缓冲注册（3840×2160×2），GPU Flip Equeue 建立，mesh shader（MS）/像素着色器（PS 52354 words）持续编译，compute dispatch 循环执行
+- 卡点：**GPU Flip Event 等待超时 ×575（SubmitFlip=0，游戏未提交第一帧）**→ runtimeLinker.cpp:702 host null write 崩溃。GPU 命令流/完成事件层问题（RDNA2 recompiler/queue 调度深度区）
+
+### 文件变更（均在本机，不入库）
+- eboot.bin：两处 11 字符 NID 等长替换（eboot.bin.bak 备份）
+- sce_sys/param.json：新增内存配比
+- tools/KytyPS5-20261126/：kyty_emulator.exe 恢复原版，实验副本已清理
+
+### 下一步
+- GPU flip/queue 层攻坚（Kyty 上游每日构建更新 + wave64 着色器/occlusion 开关组合测试）
+- 64 条外围服务 unresolved（PSN/商店/语音等）stub 返回 0 未阻碍启动
