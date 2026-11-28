@@ -818,3 +818,33 @@ eboot.bin 需含两处 NID patch（BlendSpace/ClearFlipMaster）+ sce_sys/param.
 - 校验 RELEASE_MEM 写回地址（buffer[2]&~3 | buffer[3]<<32）与 ACQUIRE_MEM poll 地址的闭环，
   并核对 EVENT_WRITE 处理器对 0x40F/0x410 的实现（CpOpEventWrite, pm4Handlers.cpp:862）。
 - 若闭环断裂在写回路径，方向 = 在 ReleaseMem 的写回分支加诊断或对照 EVENT_WRITE→事件队列触发链。
+
+## 2026-11-28 09:20 自动轮：flip 链路全程畅通被实证，卡点后移到 FlipQueue 呈现冻结（+3 处匹配假象修正）
+
+### 运行实验（本轮核心证据）
+- 参数：`kyty_clean.exe --game ... --printf-direction File --printf-output-file logs/auto-fliptrace-20261128-085943.log --graphics-debug-dump`，215s 后游戏自崩（exit=65），日志 734 MB。
+- **flip 命令流链路全程畅通**：CpFlip ×4562、"Flip done:" ×4562、ReleaseMem ×66255、CP packet ×747002、TriggerEvent ×28152。
+  之前"命令流未到达 flip / CpFlip 从未执行"结论**全部推翻**。
+
+### 三处匹配假象（教训固化）
+1. cmdbuf dump 的 hex 是**小写 + 8 位补零**（`0x00000342`/`0xc7010107`）。旧"RELEASE_MEM=0"和"无 0xC7 flip 标签"皆因 grep 模式错。实际：4058/5278 缓冲含 RELEASE_MEM；**1047 个完整 flip 块**（tag 0xc7010107/0xc701010f 双缓冲交替，全部在 ci 缓冲），与 set_flip 布局逐字吻合（SET_UCONFIG R=1 + WRITE_DATA 0x06010000/0xc343 + RELEASE_MEM 0x06200504/0x42010000 写 label=1，label=VideoOutConfig.labels 数组 host 地址 0xFF5DBC8040/48）。
+2. **PRINT_NAME_ENABLED 是 thread_local**（libs.h:22），仅 init 线程生效 → 日志无 VideoOut:: 行≠未调用（内部 LOGF 证明 RegisterBuffers2/SetFlipRate/Open 都在调）。
+3. dump 是**提交侧**快照≠执行侧证据（帧栅栏 ref 1..9015 是录制值，不能当 GPU 进度）。
+
+### 崩溃机制（实锤）
+游戏看门狗自杀：guest 主动执行 `mov dword ptr [0], 0x4d8bd421`（fault context 实录），非 runtimeLinker 缺陷。诱因 = flip 停止后 equeue 超时 519 次。
+
+### 真正卡点（新）：FlipQueue 呈现冻结
+时间线：Flip done 稳定 ~4560 次（~21 fps 呈现节奏）→ **line 19012355 后归零**；但 CP 继续处理 5153 包（含 **132 个新 CpFlip** + 183 ReleaseMem）→ flip 请求继续进入 FlipQueue 但**永不呈现** → flipPendingNum 累积 → 等待超时 → 看门狗杀。
+稳态期的偶发超时突发（bucket 3-5）是 GPU 慢于等待，良性；终局 519 连续超时是冻结后果。
+equeue 投递机制本身正常（稳态等待大多成功；TriggerVideoOutEvents→KernelTriggerEvent 链路无缺陷）。
+
+### 三个未决假设（按优先级，下轮一次验一个）
+1. **CompleteFlip 延迟操作停摆**：cp.Flip 用 `GetScheduler().DeferPriorityOperation(CompleteFlip)+Flush()`，请求到 Ready 靠 scheduler tick 推进；host GPU/scheduler 冻结则请求永不 Ready → Flip() 恒 false。
+2. **due 恒 false**：FlipQueue::Flip 的 due = generation 匹配 && IsFlipDueLocked（flip_rate=1 → 每 2 vblank 一次）；vblank_status.count 停增或 generation 变化会永久压住呈现。（本轮仅 2 次 VideoOutOpen、无 Close/Open churn，generation 理论较弱。）
+3. **master/slave 分组**：Reserve 里 `group = (cfg.master==nullptr ? id : 0)`；若游戏中途 SetFlipMaster（WkYtyOg30do，已导入）把主口变 slave，请求 group=0 等 master 捕获，master 不 flip 则永不呈现。
+验证手段：下轮加 `--perf-overlay`（DebugCounters: FlipsRequested vs 实际呈现）短跑复现冻结，对照计数差即可三选一。
+
+### 产物
+- scripts/analyze_sync_closure.py：RELEASE_MEM 写回 vs WAIT_REG_MEM 轮询地址闭环分析（15/16 地址闭环，0xFF5DBC8040 为 flip label）。
+- 运行日志 logs/auto-fliptrace-20261128-085943.log（734MB，勿入库）。
