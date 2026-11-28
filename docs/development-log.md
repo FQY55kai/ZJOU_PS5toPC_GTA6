@@ -1174,3 +1174,25 @@ kyty + --graphics-debug-dump --perf-overlay 8 分钟 + auto_confirm.py(20s) + 30
 - scripts/launch_victory.py、scripts/scan_concat.py（入库）
 - logs/play-shots/victory-americas.png（3D 场景实证截图，勿入库）
 - victory-play.log（工作区根目录，勿入库）
+
+## 2026-11-28 15:32 附录：round2 resolve 轨迹分析 + scaleform_startup 锁定 + 探测轮开跑
+
+### printf 路径修正生效后的 round2 日志（auto-r2-20261128-152306.log, 15.5MB）
+- **missing 仅 33 条**（原 2493）——游戏只在早期启动请求了 33 个未落盘路径，世界流送（levels 2075 条）尚未发起。
+- 请求序（前 6）：animimgfilters.pmt → **scaleform_startup.rpf** → settings.rpf → signfonts_metadata.rpf →
+  conversations.rpf → audio_metadata.rpf。**黑屏根因锁定 = scaleform_startup.rpf**（启动 UI 电影缺失）。
+- 日志尾部刷 controller rumble（handle/large_motor/small_motor）：游戏活着且响应按键，只是画不出 UI。
+- 游戏会自退（exit 127、无 fault 上下文）：启动失败数分钟后自行退出，非崩溃非看门狗。
+- 日志主体是 dmem map 轨迹（in_addr 0xfe000000 等 5.4 万行）+ Equeue "GPU Flip Event" timedout 61 次（轮询非错误）。
+
+### 鉴定补线（全部未命中，记录方法成本）
+- TOC name block 明文假设证伪：#27 的 "uiSettingsGamepadControlsData/STANDARD_LAYOUT" 是 payload 渗入，纯 TOC 区全乱码（加密）。
+- UTF-16 扫描、GFx 标志（flash./MovieClip/_root）、startup 纹理名（background_legal/menu_item_）在未鉴定档全 0 命中——载荷压缩。
+- TTF 头假设噪音过大（numTables=256 假阳性成串）放弃。
+- #40（fc=1247）off+size 超出 data_concat.rpf EOF 1.2MB——**dump 疑似截断**，该档不可落盘（截断=错格式=崩），跳过。
+
+### 探测轮（carve3-probe-manifest.txt，运行中 auto-probe1-20261128-153035.log）
+多路并测（有效 RPF9 错内容=解析软失败，低风险）：
+#37→scaleform_startup.rpf、#4→settings.rpf、#2→signfonts_metadata.rpf、#1→conversations.rpf、
+#7→treewinddata.rpf、#28→drawablesamplers.rpf。
+判据：①截屏出现 legal/启动 UI → 至少 startup 命中，再二分；②missing 列表变化；③无新 fault。
