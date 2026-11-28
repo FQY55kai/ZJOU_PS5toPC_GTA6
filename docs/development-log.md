@@ -911,3 +911,32 @@ kyty + --graphics-debug-dump --perf-overlay 8 分钟 + auto_confirm.py(20s) + 30
 ### 结论与下一步
 1. "FlipQueue 呈现冻结"三假设（scheduler/due/master）**全部撤回**——是等待输入，模拟器无缺陷。
 2. 下轮：15 分钟长跑 + auto_confirm，目标推进过"按 X 开始"进入 3D 世界，用 overlay 测 3D 场景 FPS（目标 30）；shader 编译抖动（worst 250ms）可先用多跑几轮预热缓存缓解。
+
+## 2026-11-28 10:00 自动轮：3D 世界加载首次被触发并捕获真卡点——Ampr 成员路径全量 ENOENT（RPF9 容器壁垒）
+
+### 运行（轻量化 + 资源采样）
+- 参数：`kyty_clean.exe --game ... --printf-output-file logs/auto-scene-20261128-100030.log --perf-overlay --shader-cache`（**去掉 --graphics-debug-dump** 降开销；因 ShaderStorePath() 实现中 debug-dump 会禁用 shader cache）+ auto_confirm.py(20s) + 30s 截屏 + typeperf CPU/RAM/GPU 采样。
+- 游戏 ~2 分钟处再次看门狗自杀（`mov [0], 0x4d8bd421`，exit=65），573 次 flip 超时。
+
+### 画面进展（截图实证）
+- sc-01(10:01:01)：**GTA6 标题美术**（火烈鸟/心形热带画面，30 秒即达）；
+- sc-03(10:02:03)：**黑屏** = 游戏按 J 后**进入了 3D 世界加载**（此前从未走到这步）→ resolve 风暴 → 崩溃。
+- 本次运行首次捕获到世界加载的直接卡点。
+
+### 卡点实锤（本轮最重要）
+1. **Ampr 成员路径解析全量失败**：2493 次 `APR resolve missing path`（0 成功记录），全部是容器成员逻辑路径：
+   `data/levels/...` 2075 个（island_01 各城区 ap_merged.rpf/ap_occl.rpf/...）、`data/anim/...` 235 个、`data/packs` 60、`data/data` 25 等。
+2. **游戏全部数据访问走 Ampr**：kernel open 仅 3 次（存档/设置）。resolve 失败后**零读取尝试**（"APR submit failed for unknown file id" 0 条）——resolve 是纯存在性查询，失败即放弃，流式管线（分配直接内存→resolve→读取→上传）拿不到任何世界数据，~2 分钟后看门狗判死。
+3. **数据物理位置**：成员都在 RPF9 容器内。levels.rpf=16MB（TOC）+ levels_concat.rpf=188.6GiB（载荷），anim/navmeshes/audio/packs/story000 同构（各 pack/<chunk>/<chunk>.rpf + _concat.rpf）。RPF9 证据：magic 0x52504639、页对齐 0x40000、头部 32 字节密钥材料、TOC 区高熵=加密（社区 gtamods/GTA6-Asset-Info/RageForge 三方确认：TOC AES-CBC 加密无公开密钥）。
+4. **Ampr NID 无缺口**：eboot 导入的 16 个 libSceAmpr NID 在 Kyty 全部已注册（此前"缺 HLE 导出"嫌疑排除）。MapBegin/MapDirectBegin 是 no-op；无归档挂载 HLE；PlayGo 层只报 chunk 数。
+5. **元数据缺失**（日志 "Can't open"）：sce_sys/playgo-chunk.dat、playgo-chunks.xml、playgo-chunkdefs.xml、Data/chunkmanifest。游戏按 pack/<chunk>/data/ 下明文（version.txt/changesets/*.meta）访问的文件也全部缺失（被收进 story000.rpf）。
+
+### 资源利用率（本指令主题，基线已建）
+- **--shader-cache 机制确认**：`_PipelineCache/<title_id>.shaders/.bin`（相对 CWD），带驱动 UUID 签名校验；注意 **--graphics-debug-dump 会禁用它**——此前所有 debug-dump 运行都无缓存预热，这就是 worst frame 250ms 编译抖动的来源之一。本次运行 2 分钟即崩，未到 Checkpoint 保存间隔，缓存尚未落盘（下轮长跑确认落盘位置）。
+- 性能相关 CLI 候选（场景加载正常后逐项试）：`--relaxed-shader-float`（原生浮点，更快但精度降）、`--skip-notice-screen`（跳启动 logo）、`--flush-draws <n>`；typeperf 基线采样已开始（resource-util.csv）。
+- overlay 诊断行齐备（Shader recompiler 耗时/CPU waiting on GPU/纹理传输与驱逐），进 3D 后可直接定位瓶颈。
+
+### 下轮计划（一次一个）
+1. **首选：用 RageForge（github.com/nullbrik/RageForge，C# LGPL-3.0）数据雕刻提取 RPF9 成员**，把 island_01 区域 RPF（ap_merged.rpf 等）落到 `data/levels/...` 真实路径，让 Ampr resolve 通过 → 世界加载。本机 dotnet 9.0.321（RageForge 需 .NET 10，可能要装 SDK）。
+2. 备选：重建 Data/chunkmanifest（格式未知，更难）。
+3. 场景能加载后：overlay 测 3D FPS，逐项试性能开关冲 30 帧。
