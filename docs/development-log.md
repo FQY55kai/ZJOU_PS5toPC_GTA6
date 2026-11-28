@@ -1140,3 +1140,37 @@ kyty + --graphics-debug-dump --perf-overlay 8 分钟 + auto_confirm.py(20s) + 30
   （预期 2477-21=2456）、看黑屏是否出现 UI/画面内容（ui_startup_textures + scaleform_general + loading_screens 齐了）。
 2. 若仍有黑屏：按 resolve 日志的请求序定位 scaleform_startup 归属 archive。
 3. anim/packs 组映射（235+59 条）：fcount/size 语义匹配先行（animblackboard=fc1 小档、megadictionaries=fc16384 5.4GB 档）。
+
+## 2026-11-28 15:16 手动轮：目标达成——Xbox/Victory 路线成功渲染 3D 场景（Americas，18fps/5868 draws），PS5/Kyty 路线确认为死胡同
+
+### 用户指令
+"目前还是没画面，继续攻克，要达到能玩的状态再停" + "看看github上有没有新成果，C:/GTAVI 里有没有可用的文件，现在连开始的动画都不显示了"
+
+### GitHub（无新构建）
+- KytyPS5 releases 最新仍 KytyPS5-2026-11-26-61db2f8（26 Nov 23:01），本轮未下载未重跑。
+
+### PS5/Kyty 路线现状（死胡同定性）
+- 本轮两次 carved 复跑日志（workspace auto-carved-145938/150228）：落盘 16 文件生效，resolve missing 2493→52；但**均无有效 flip 呈现**（0 CpFlip/Flip done、1187 次 Equeue wait timedout GPU Flip Event）。
+- 窗口标题 `frame:4320 fps:30` 但 PrintWindow 抓到纯色——Vulkan 表面无内容；截图证实无动画。
+- 第一批 16 archive（14:10 轮）落盘后**反而退化**：15:02 运行崩在 5.783s runtimeLinker.cpp:702（一次），第二批 carve2（21 文件含 models.rpf/scaleform_general/全套 textures）由并行会话落盘后回到空转。
+- 52 残留缺失含 scaleform_startup/models/settings/animimgfilters，经全 concat mmap 扫描确认**不在 data_concat/textures_concat/packs_concat/script_concat/顶层 RPF 中**；levels_concat 202GB 未全扫。名称映射最后一公里 + 流式加载仍是硬卡点。
+- 结论：PS5 路线在"名称映射→真实数据落盘→streaming 消费"链条上仍需数轮，且 30fps 3D 无实证。
+
+### 重大突破：C:/GTAVI 里发现被忽视的成熟 Xbox→PC 路线（达成目标）
+- 位置：`C:\GTAVI\Bulid_now\scarlett-fox-通用-2611272152`（2026-11-27 20:13 构建，victory.exe + 5 步脚本）+ dump `C:\GTAVI\GTA6.Xbox.v1.0.2.1`（完整，含 game_scarlett_master.exe 120MB）。
+- README：基于 victory-scarlett / scarlett-fox 分支 commit bc264a4，**上游 3 项修复**（冻结修复 SOFT_VIEWS 页映射、启动器着色器预翻译、默认画面修复关 RT 无紫色植被）；**12GB 档 RTX4080 实测 21-30fps**。
+- 预热状态：缓存 `%LOCALAPPDATA%\victory-scarlett-fox` 已有 shaders 995MB/27803 文件、pipelines 254MB、images 118MB（11-28 08:01–11:21 预热完成）；`_run.log` 显示 00:17–00:32 已走完 3→4→5 步流程。
+- 本轮启动：`scripts/launch_victory.py`（Python 注入 _Start-GTA6.cmd 全部环境变量，profile=12 对应 12282MiB 显存，绕过 .cmd 的 pause/中文编码）。命令 `victory.exe run game_scarlett_master.exe --execute --console series-s`。
+- **实证（截图 logs/play-shots/victory-americas.png）**：GTA6 3D 世界正常渲染——角色（白背心花短裤）、柏油路+双黄线、STOP 标志、热带树木、电线杆、民房、小地图 HUD、右上角目标图标。窗口标题 `Americas | VIctory 18 fps 55.9 ms/frame 5868 draws/frame`（60s 后 18fps/5868 draws）。日志 victory-play.log 16087 行、CRASH/panic/unimplemented 全 0、imports missing=0、frame rate patch 30Hz。
+- 性能基线：18fps @ 1920×1080，GPU 侧 submissions 29.8ms/帧（recorded prewarm）；距 30fps 目标差 ~12fps，但**已是可玩的 3D 场景**。
+
+### 下轮计划（30fps 冲刺，一次一个）
+1. 显存档位：当前 profile=12 用 8192MB 纹理预算；RTX4080 Laptop 12GB，README 称 12GB 档 21-30fps 实测——先确认 VICTORY_PROFILE 是否生效（日志 `VICTORY_PROFILE` 行），必要时微调 VICTORY_TEXTURE_BUDGET_MB / VICTORY_CARD_BUFFERS_MB。
+2. 预热补充：shaders 27803 已缓存，但首跑仍有新 pipeline 编译；再跑一次 3→4→5 步完整流程积累账本。
+3. 按键进游戏深处跑图 10 分钟攒缓存，复测 fps。
+4. PS5 路线暂缓（除非上游 >11-26 新构建），保持已落盘文件不动。
+
+### 产物
+- scripts/launch_victory.py、scripts/scan_concat.py（入库）
+- logs/play-shots/victory-americas.png（3D 场景实证截图，勿入库）
+- victory-play.log（工作区根目录，勿入库）
