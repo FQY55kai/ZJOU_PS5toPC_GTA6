@@ -1032,3 +1032,53 @@ kyty + --graphics-debug-dump --perf-overlay 8 分钟 + auto_confirm.py(20s) + 30
    ui_content 大），与 38 个 fcount+size 二维指纹匹配，先落盘 2-3 个高置信 archive 做 kyty 复跑。
 2. 整 archive 严格 zlib 扫描小 archive（#27/#29 等），用解压内容（pmt 元数据文本）反推名称。
 3. 若映射成功 ≥80%，落盘全部 data 组成员 → kyty + auto_confirm 复跑验证世界加载推进。
+
+## 2026-11-28 14:10 自动轮：名称映射重大突破——嵌套 archive 载荷明文自描述，16 个高置信映射落地并雕刻落盘
+
+### 上游 / git
+- 上游无新构建（releases 最新仍 KytyPS5-2026-11-26-61db2f8，26 Nov 23:01）。仓库有 4 个未跟踪文件（docs/RPF9-format.md、scripts/classify_missing.py、data_concat_9fpr_offsets.txt、rpf_keyids.txt，疑并行会话产物），本轮一并入库。
+
+### 假设①「key_id=名称哈希」证伪（快速排除）
+- 全量读取 dump 21 个顶层 RPF 头（logs/top-rpf-headers.json）：key_id 仅 3 组——DA72573E×15（anim/movies/packs/shaders/bvh 族）、D5C19F6B×2（data.rpf、story000.rpf）、5A5B4C6F×4（restofworld 族、textures）。同名不同 key_id 不存在，同 key_id 异名大量存在 → **key_id 不是名称哈希，是 TOC 密钥组/内容类别标记**（rpf_keyids.txt 的"映射"是巧合相关）。
+- 该特征仍可用于映射过滤：如 D98004D5 组嵌套 archive（#31 controller_test、#33 platform_ps5、#34 blip）与 levels/地图呈现相关。
+
+### 假设②「载荷 zlib 流」证伪 + 重大翻转：载荷是明文自描述
+- #27/#29（fcount=1 小 archive）严格 zlib 扫描 0 命中——但直接读数据区发现**明文字符串**：
+  - #27 = STANDARD_LAYOUT/ON_FOOT/PAD_L1/HOLSTER…（输入映射表）→ data/data/control/common.rpf
+  - #29 = ns_square_Main/decorations.square.Main_Svg/flash.display（Scaleform SWF）→ scaleform_decorations.rpf
+- 上轮"载荷 zlib 嗅探未命中"根源即此：载荷根本不是 zlib，是裸明文二进制资源。
+- 全 41 archive 字符串签名已存 logs/nested-archive-signatures.json。
+
+### 13-archive 家族定性：语言包族（13×fcount=1115，5A5B4C6F）
+- 按-language 词典字符串鉴定：#12=English(American)、#13=葡语、#16=法语、#17=德语、#18=意语、#21=墨西哥西语、#22=波兰语、#24=西语；#14/#15/#19/#20/#23 无拉丁字符串=俄/日/韩/简中/繁中。8 拉丁+5 非拉丁=13 全对上。
+- **#12 → data/data/lang/american_final.rpf**（缺失清单中唯一 lang 路径）。
+
+### 高置信映射表（16 条，全部有字符串证据）
+| # | size | evidence | → 路径 |
+|---|---|---|---|
+| 3 | 1.27MB fc=17 | cam_*KillShots/TestVCRShots | data/data/camera/cam_generic.rpf |
+| 5 | 5.6MB fc=181 | cam 设置大全 | data/data/camera/cam_core.rpf |
+| 8 | 3MB fc=11 | ptfx_model_bulb/mussels | data/data/effects/ptfx/drawables.rpf |
+| 12 | 33MB fc=1115 | English 词典 | data/data/lang/american_final.rpf |
+| 25 | 2.4MB fc=27 | 德语 Rockstar 法律文本 | data/data/legal.rpf |
+| 26 | 889KB fc=125 | CMovieSubtitleEventArg/TVPROMO | data/data/moviesubs.rpf |
+| 27 | 128KB fc=1 | STANDARD_LAYOUT/PAD_* | data/data/control/common.rpf |
+| 29 | 128KB fc=1 | decorations.square.Main_Svg | data/data/ui/scaleform/scaleform_decorations.rpf |
+| 30 | 26.5MB fc=6 | gfxfontlib_chinese_simplified 等 | data/data/ui/scaleform/scaleform_fontlib.rpf |
+| 32 | 294MB fc=76 | loading_screen_00_* | data/data/ui/scaleform/scaleform_loading_screens.rpf |
+| 33 | 3.1MB fc=7 | platform_ps5.generic_movie/hud | data/data/ui/scaleform/scaleform_platform_ps5.rpf |
+| 34 | 12MB fc=4 | BLIP_COP_SIREN/BLIP_HELICOPTER | data/textures/ui_minimap.rpf |
+| 35 | 14.5MB fc=60 | analog/generic_instruments | data/data/ui/scaleform/scaleform_vehicle_instruments.rpf |
+| 36 | 16.5MB fc=1168 | launcher_menu/FlowRoot/rage__State | data/data/ui/ui_content.rpf |
+| 38 | 1.5MB fc=3 | skydome. | data/textures/skydome.rpf |
+| 39 | 570MB fc=2896 | w_ar_adb_01/WAP_Receiver 武器 | data/models/weapons.rpf |
+- 原则：**缺失比错误安全**（stub 实验已证 0 字节可活、错数据会 guest fault），疑似歧义（#9 drawablesamplers vs fxlists）不落盘。
+
+### 已落盘（dump 内新路径，未触碰原始产物）
+- scripts/carve_data_group.py 入库；清单 logs/carve-placed-manifest.txt（清理只删清单内文件）。
+- 16 文件共 ~470MB 落到 dump data/ 树真实路径。resolve 预期 missing 2493→2477。
+
+### 下轮计划（一次一个）
+1. **kyty 复跑（10 分钟 + auto_confirm）**：验证 ① legal/control/fontlib 真数据是否消除 stub 实验轮1 的 90s 早期崩；② resolve missing 下降数；③ 推进深度（对比 10:00 基线 2 分钟看门狗）。
+2. 后台 SWF 魔数扫描（FWS/CWS/ZWS）结果读出 → 定位 scaleform_startup/scaleform_general（启动关键，明文无 flash 字符串，疑压缩 SWF）。
+3. 未匹配 archive（#0/1/2/4/6/7/9/10/11/28/31/37/40）逐个语义鉴定（#10=anm_* 动画 98MB，疑 anim 组首个映射锚点）。
