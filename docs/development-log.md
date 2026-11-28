@@ -848,3 +848,22 @@ equeue 投递机制本身正常（稳态等待大多成功；TriggerVideoOutEven
 ### 产物
 - scripts/analyze_sync_closure.py：RELEASE_MEM 写回 vs WAIT_REG_MEM 轮询地址闭环分析（15/16 地址闭环，0xFF5DBC8040 为 flip label）。
 - 运行日志 logs/auto-fliptrace-20261128-085943.log（734MB，勿入库）。
+
+## 2026-11-28 09:45 自动轮：根因反转——"FlipQueue 冻结"= 游戏卡在等待手柄确认，非模拟器缺陷
+
+### 用户指认 + 实证
+用户指出黑屏原因："是因为我没按手柄确定"。实证吻合：
+- perf-overlay 截屏（shot-21 等）：**30.0 FPS / 33.3 ms、Draw calls 10/frame**——低活动量菜单/等待界面，不是 3D 场景；
+- 上轮 734MB fliptrace 日志的"Flip done 4562 后归零 + 519 次 equeue 超时 + 看门狗自杀"= 游戏停在确认对话框不再提交帧，等待超时后自杀。**FlipQueue/事件投递/CpFlip 链路均无缺陷**（8772-flip 运行健康，29fps）。
+- 冻结"间歇性"也解释：是否冻结取决于游戏是否推进到需要确认的界面。
+
+### 输入映射（已查源码）
+Kyty hostInput.cpp:529：**`J` 键 = PAD_BUTTON_CROSS（确定）**；`L`=Circle，`I`=Triangle，`K`=Square，方向键=十字键。
+新增 scripts/auto_confirm.py：Win32 SendInput 每 N 秒向 Kyty 窗口发 J 键（默认 20s 一次），今后**每次 kyty 运行必须并行启动此脚本**。
+
+### 本轮运行（进行中）
+kyty + --graphics-debug-dump --perf-overlay 8 分钟 + auto_confirm.py(20s) + 30s 截屏，验证按键后游戏能否推进到 3D 场景。
+
+### 下一步（若游戏推进到 3D 场景）
+1. 监控 Draw calls/frame 与 FPS（overlay 截屏），逼近 3D 场景 30fps；
+2. 若 3D 场景 FPS 低，查 perf-overlay 的 GPU/CPU 瓶颈行（Shader recompiler / CPU waiting on GPU）再定向优化。
