@@ -867,3 +867,37 @@ kyty + --graphics-debug-dump --perf-overlay 8 分钟 + auto_confirm.py(20s) + 30
 ### 下一步（若游戏推进到 3D 场景）
 1. 监控 Draw calls/frame 与 FPS（overlay 截屏），逼近 3D 场景 30fps；
 2. 若 3D 场景 FPS 低，查 perf-overlay 的 GPU/CPU 瓶颈行（Shader recompiler / CPU waiting on GPU）再定向优化。
+
+## 2026-11-28 09:50 自动轮：734MB fliptrace 逐行复核——"132 新 CpFlip"系计数假象，根因与 pad-confirm 一致（旁证固化）
+
+### 上游 / git
+- 无新构建：releases 页最新仍 **KytyPS5-2026-11-26-61db2f8**（26 Nov 23:01，kernel: remove event queue wait logging），较 b3d8c04(20:06)/9cbaf94(19:46) 更新，但均已测；无 >11-26 版本，未下载未重跑。
+- 接手时本地 ahead 1（e5b7fa7，pad-confirm 根因 + auto_confirm.py），origin/main 停在 5f62996。本轮一并推送。
+
+### 逐行复核 734MB fliptrace（auto-fliptrace-20261128-085943.log，19,079,886 行）
+对 09:20 条目"Flip done 归零后 CP 仍处理 132 个新 CpFlip"做精确计数，结论修正：
+1. **CpFlip 与 Flip done 计数严格相等 = 4562**；最后一个 `CommandProcessor::Flip()` 在 **L19011109**，最后一次 `Flip done: 1` 在 **L19012355**——请求先停、呈现后停，冻结后**零**新 flip 请求。
+2. "132 个新 CpFlip"是假象：冻结后 `WAIT_REG_MEM`(op 0x79×132) 被上轮误计为 CpFlip；同段真实计数 = 183 ReleaseMem + 132 WAIT_REG_MEM + 34 TriggerEvent，与 09:20 条目的"183 ReleaseMem"对得上，唯 132 归类错。**故 09:20 的三假设（①CompleteFlip 停摆/②due 恒 false/③master-slave 分组）前提（"请求持续入队但不呈现"）不成立，全部作废。**
+3. **SetFlipMaster / VideoOutOpen / VideoOutClose 全日志 0 次**→ 假设③（master/slave 分组）无触发源，可直接排除。
+4. **首个 equeue 超时在 L118180**（首个 flip 前，L118236；末次超时 L19079879）→ 超时是全程周期性良性事件，非冻结诱因；冻结发生在超时之前，因果方向确认为"游戏停提交帧 → 后续等待累积超时 → 看门狗自杀"。
+5. 冻结后 guest 仍在跑：frame=4563 段 **789 次 compute dispatch**（正常帧 1–44 次），主哈希 `0x16fb2540e1b92776` ×486（该哈希全局 510 次）；渲染线程空转在 compute dispatch 而非停在 FlipQueue——与"卡在确认界面、不再产帧"吻合。
+6. 尾帧 `GraphicsRenderDispatchDirect: frame=4563 ... tick=18985 completed_tick=18984`（L19079819）后即 `mov [0],0x4d8bd421` 看门狗空写（runtimeLinker.cpp:702），与 09:45 根因一致。
+
+### 跨运行旁证（三项独立证据支持 pad-confirm 根因）
+| 日志 | Flip 数 | 模式 | 结局 |
+|---|---|---|---|
+| auto-fliptrace-085943（08:59，无输入） | 4562 | frame4563 空转 | 看门狗自杀 |
+| auto-overlay-093356（09:38） | **8770** | 双缓冲 0/1 各 4385 交替，frame 号正常递增 | 健康，日志尾仍在 dispatch |
+| auto-autopress-094345（09:46，含 auto_confirm.py J 键） | **8025** | 同上 | 运行中（PID 436），日志持续增长 |
+
+- flip 数从 4562 → 8025/8770 的跃升与"是否推进过确认界面"相关，非模拟器能力变化；冻结的间歇性由此确认。
+- **overlay 截屏实证**：bright-ap05.png 显示 `30.0 FPS / 33.3 ms` +  lavender 纯色窗口 + 右下角 `CONTINUE ✕` 按钮 = 确认对话框，非 3D 场景。当前 30fps 是菜单/等待态数字，**3D 场景 30fps 目标尚未达成**。
+
+### 本轮结论
+- 09:45 的 pad-confirm 根因成立且被两类独立证据（截屏 UI + 逐行日志计数）加固；09:20 的"FlipQueue 呈现冻结"三假设因前提错误作废。
+- 上游无新构建，无新版本可测；本轮不重跑、不动正在运行的 PID 436（用户/并行作业）。
+- 下一步仍按 09:45 计划：待当前 autopress+截屏运行结束，读取 shot/ap 序列确认 J 键是否把游戏推进到 3D 场景；若仍是确认界面，需确认按键是否指向 Kyty 窗口（焦点/窗口句柄），或该对话框需不同按键（Circle/L = 取消，Cross/J = 确定）。
+
+### 产物
+- scripts/analyze_freeze.py：734MB 日志单遍扫描器，输出 Flip/FlipQueue 关键计数与 transition 行号（已随 e5b7fa7 提交）。
+- 复核日志 logs/auto-fliptrace-20261128-085943.log（701MB，勿入库）。
