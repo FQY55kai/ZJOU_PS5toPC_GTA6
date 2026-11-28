@@ -901,3 +901,13 @@ kyty + --graphics-debug-dump --perf-overlay 8 分钟 + auto_confirm.py(20s) + 30
 ### 产物
 - scripts/analyze_freeze.py：734MB 日志单遍扫描器，输出 Flip/FlipQueue 关键计数与 transition 行号（已随 e5b7fa7 提交）。
 - 复核日志 logs/auto-fliptrace-20261128-085943.log（701MB，勿入库）。
+
+### 09:50 运行结果（auto_confirm 验证成功）
+- 三线并行 8 分钟：kyty(--graphics-debug-dump --perf-overlay) + auto_confirm.py(20s) + 30s 截屏。
+- **flip 链路 8 分钟全程健康：CpFlip = Flip done = 11769（严格 1:1，~24.5fps 呈现）**，零冻结。769 次 equeue 超时全部集中在按键生效前的 CONTINUE 等待期。
+- 输入验证：PostMessage J/L/Enter 直投后 CONTINUE ⊗ 界面立即消失 → 7 星加载画面 → **GTA6 标题美术画面**（热带场景 + "…MIAMI AND…"文字，draw 56/帧、纹理 263MB/s、28.6fps、worst frame 250ms=shader 编译抖动 15 个）。
+- auto_confirm.py 已升级为 PostMessage 主通道 + SendInput 备份（`python auto_confirm.py 20 <时长> JL`）。
+
+### 结论与下一步
+1. "FlipQueue 呈现冻结"三假设（scheduler/due/master）**全部撤回**——是等待输入，模拟器无缺陷。
+2. 下轮：15 分钟长跑 + auto_confirm，目标推进过"按 X 开始"进入 3D 世界，用 overlay 测 3D 场景 FPS（目标 30）；shader 编译抖动（worst 250ms）可先用多跑几轮预热缓存缓解。
