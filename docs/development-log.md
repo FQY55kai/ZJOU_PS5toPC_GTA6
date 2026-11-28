@@ -940,3 +940,32 @@ kyty + --graphics-debug-dump --perf-overlay 8 分钟 + auto_confirm.py(20s) + 30
 1. **首选：用 RageForge（github.com/nullbrik/RageForge，C# LGPL-3.0）数据雕刻提取 RPF9 成员**，把 island_01 区域 RPF（ap_merged.rpf 等）落到 `data/levels/...` 真实路径，让 Ampr resolve 通过 → 世界加载。本机 dotnet 9.0.321（RageForge 需 .NET 10，可能要装 SDK）。
 2. 备选：重建 Data/chunkmanifest（格式未知，更难）。
 3. 场景能加载后：overlay 测 3D FPS，逐项试性能开关冲 30 帧。
+
+## 2026-11-28 11:20 自动轮：Ampr 卡点定性修正——缺失的是嵌套 RPF 文件本身，RPF9 雕刻路线开工
+
+### 上游 / git
+- 无新构建：releases 页最新仍 KytyPS5-2026-11-26-61db2f8。
+- push 仍积压 2 个 commit（1f41d9a、6b8acfc）：本轮 pull/push 均 connection timeout ~93s，稍后重试。
+
+### 卡点定性修正（本轮最重要）
+- 复核 auto-scene-20261128-100030.log 的 2493 条 "APR resolve missing"：**缺失的不是容器内成员，而是嵌套 RPF 文件本身的真实文件路径**。
+  例：`/app0/./data/models/models.rpf`、`/app0/./data/data/legal.rpf`、`/app0/./data/data/ui/scaleform/scaleform_startup.rpf`、`/app0/./data/data/effects/animimgfilters.pmt`。
+  Kyty 的 Ampr resolve 把 /app0 路径直映到 dump 目录（`GTAVIPS5\./data/...`），dump 只有顶层 rpf+concat 对、无散装嵌套文件 → ENOENT。**只要把嵌套文件落到真实路径，resolve 即可通过**（游戏后续用普通 open 读该路径）。
+- 缺失分布（去重 2493）：levels 2075 / anim 235 / pack chunk 散文件 60 / data 25 / textures 20 / models 2 / audio 1。
+
+### RPF9 布局实测（自写 magic 扫描）
+- 文件内 magic 字节序为 `9FPR`（LE 存储 0x52504639）。
+- `data_concat.rpf`（1.55GB）全量扫出 41 个 magic：头部区 3 个 + **38 个嵌套 archive 头**，任意偏移（非页对齐）。
+- `levels_concat.rpf`（188.6GiB）多点抽样（0/4/8/32/64/96GB 各 512MB）：0-12 hits/样本，密度 ≈ 5.6/512MB，推算全量数千个嵌套头，**与 2075 预期量级吻合**。
+- 顶层 TOC 确认加密：data.rpf TOC 区熵 7.97、无明文字符串；`rageforge info`：data.rpf=660 条目 hierarchical（key_id d5c19f6b）、levels.rpf=29 条目 flat（key_id d98004d5）。名字不可从 TOC 恢复 → 必须走 carving 索引。
+
+### RageForge 入库
+- 下载 RageForge v0.7.271126 CLI（33.8MB，gh-proxy 成功）→ tools/RageForge-cli-07271126/，自包含免 .NET。
+- `rageforge info` 解析验证 OK；README 确认其定位 = "file carving + 元数据命名，不导出、不解密 TOC"。
+- **雕刻提取须自研**（RageForge 不导出）：按 magic 扫出嵌套 archive 起点，RageForge 索引提供"资源元数据名"做路径映射。
+- 全量索引已在后台启动（540GB，预计 10 分钟级），下轮读结果。
+
+### 下轮计划
+1. index 完成 → `rageforge search` 把雕刻候选映射到 2493 缺失路径（先做 data/textures/models 等 47 个小路径验证链路）。
+2. 自研 carve 脚本：按 magic 偏移切嵌套 archive（大小=下一 magic 偏移差），落盘到真实路径。
+3. kyty 重跑 + auto_confirm，验证 resolve 成功数上升、游戏推进深度。
