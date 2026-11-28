@@ -1198,3 +1198,9 @@ kyty + --graphics-debug-dump --perf-overlay 8 分钟 + auto_confirm.py(20s) + 30
 - scaleform_startup 不在 data_concat 已鉴定集（SWF 魔数全库仅 #32=loading_screens；#37 探测已证伪）→ **换线索源**。
 - **下轮假设：扫描 data.rpf 自身嵌套 9FPR 头表**。依据：batch2 从 data.rpf@0x40000 成功雕刻 models.rpf（载荷明文"车辆部件/道具/INPUT_*"），证明 data.rpf 内嵌套档可定位可解析。方法：对 data.rpf 全量扫 9FPR 头 → 建 offset/size/fcount 头表 → 与 data 组缺失路径（settings/scaleform_startup/signfonts/updategraphs/treewinddata/drawablesamplers 等）做 fcount+size 语义匹配 → 高置信档整档落盘 → kyty + auto_confirm 复跑看启动 UI。
 - Victory 路线旁注：victory-tuned（profile12 全参数档）16 帧即被外部关窗（并发干扰），无有效 FPS 数据；Victory-NVIDIA-1.3.10 DLSS 帧生成脚本（play-gta6-framegen.ps1，2560x1440 DLSS Quality + FG 2x）已就位未验证。下轮若无并行会话可跑 launch_victory_tuned.py + auto_confirm_victory.py 测 3D 场景 FPS（18→30 主战场）。
+
+
+### 16:50 附录：data.rpf 9FPR 扫描（下轮假设快速验证，结果为负）
+- data.rpf 全量扫描仅 2 个 9FPR 头：@0=自身（fcount=660，key 6B9FC1D5）、@0x40000=唯一嵌套档（fcount=156，key 3E5772DA）。结果存 logs/data-rpf-nested-headers.json。
+- **推论**：settings/scaleform_startup/signfonts 等缺失 data 组档不在 data.rpf 内；data.rpf@0x40000（已雕为 models.rpf，fcount=156）存疑——156 条目对 models.rpf 偏小，需复核该映射（载荷"车辆部件/INPUT_*"证据 vs fcount 语义）。data_concat 未鉴定档 #0/#6/#9/#11 仍是 startup 档的剩余候选源。
+- 下轮修正方向：①复核 data.rpf@0x40000 映射（fcount=156 vs models 语义矛盾）；②对 #0/#6/#9/#11 做深度字符串/结构鉴定（UTF-16、GFx、字典熵分析）；③考虑 audio_concat（29GB，conversations/audio_metadata 候选）与 levels_concat 嵌套头表扫描。
