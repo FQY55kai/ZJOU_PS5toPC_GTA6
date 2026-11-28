@@ -1082,3 +1082,61 @@ kyty + --graphics-debug-dump --perf-overlay 8 分钟 + auto_confirm.py(20s) + 30
 1. **kyty 复跑（10 分钟 + auto_confirm）**：验证 ① legal/control/fontlib 真数据是否消除 stub 实验轮1 的 90s 早期崩；② resolve missing 下降数；③ 推进深度（对比 10:00 基线 2 分钟看门狗）。
 2. 后台 SWF 魔数扫描（FWS/CWS/ZWS）结果读出 → 定位 scaleform_startup/scaleform_general（启动关键，明文无 flash 字符串，疑压缩 SWF）。
 3. 未匹配 archive（#0/1/2/4/6/7/9/10/11/28/31/37/40）逐个语义鉴定（#10=anm_* 动画 98MB，疑 anim 组首个映射锚点）。
+
+## 2026-11-28 15:25 自动轮：雕刻落盘重大 bug 修复（payload-only→整档）——崩溃消除、引擎存活 15 分钟、38 FPS 黑帧持续呈现；textures 组 18 映射落地
+
+### 事故与根因（必须记住）
+- 14:10 轮落盘的 16 个文件是 **payload-only**（carve_data_group.py 只写 `size - data_start`，跳过了 64B 头+加密 TOC）。
+  复跑 6 秒即 guest fault（`mov rax,[r13+0]` r13=0 空对象虚表调用，pc 在 runtimeLinker.cpp:702）——
+  游戏按 RPF9 解析无头数据必崩，再次验证 stub 实验结论：**缺文件可活、错格式必崩**。
+- 修复：整档落盘 `[off, off+size)`（header+TOC+payload 原始字节），游戏自己解密 TOC。
+  16/16 重放后魔数 9FPR 校验通过（legal toc_end=1856 fc=27 key=da72573e 等全字段自洽）。
+
+### 复跑结果（auto-carved-20261128-150228，15 分 39 秒，exit 127 无 fault 上下文）
+- **历史最好状态**：不崩、不看门狗，guest 持续呈现 15 分钟。perf-overlay：**38.0 FPS / 33.3ms**、
+  Draw calls 150/s、CPU 5%、GPU mem 1.31/10.96GB、Emulator RAM 2.68GB。用户确认"没画面，但是没卡死"。
+- 画面=黑帧：draw call 仅 150/s（3D 场景应数千级），判断仍在加载/启动 UI 态。
+  疑缺 scaleform_startup.rpf（启动 UI 电影）+ data/levels 世界数据。
+- printf 日志没落盘：**bash 下 `C:\G...` 反斜杠被吞**，路径变 `C:GTAVI...` 打开失败。
+  下轮用正斜杠 `C:/GTAVI/...` 并加引号。本轮详细 resolve 轨迹丢失，只有 stdout 1267B 初始化行。
+
+### 覆盖率账本（missing-paths-dedup.json 2493 条）
+- 16 整档落盘后 2477 仍缺：levels 2075 / anim 235 / pack 73 / packs/base 60 / data 组 93 / textures 18。
+- **三容器 1:1 发现**：anim_concat=235 嵌套档↔缺失 anim 路径恰 235；packs_concat=59↔packs/base 60；
+  textures_concat=20↔textures 路径 20（含已落 2）。名称映射可逐容器复制 data_concat 签名法。
+  （anim/packs 载荷为压缩二进制，ASCII/UTF-16 签名均无效，需换 fcount/size 语义匹配或请求序组内对齐。）
+
+### 本轮新落盘 21 个整档（carve_batch2.py，logs/carve2-placed-manifest.txt）
+| 来源 | 证据 | → 路径 |
+|---|---|---|
+| tex#0 | glass_crack_decals/defnormbroken | data/textures/breakableglass.rpf |
+| tex#1 | cheatcode_overlays_tv/fisheye/rewind | data/textures/footagepostfx.rpf |
+| tex#2 | blank_white/blank_terrain_ma | data/textures/global_defaults.rpf |
+| tex#3 | gradientmaps | data/textures/gradientmappostfx.rpf |
+| tex#4 | cloudmap_*/emissives/lightocclusion | data/textures/graphics.rpf |
+| tex#5 | heightmap | data/textures/heightmaps.rpf |
+| tex#7 | colorblind LUT debug + wbf transitions | data/textures/lutpostfx_hdr.rpf |
+| tex#8 | rope_anim_wave/rope_deg_* | data/textures/rope_light_anim.rpf |
+| tex#10 | snow_coverage/snowdiffusemap | data/textures/snow.rpf |
+| tex#11 | blip_* 地图图标 1199 名 | data/textures/ui/ui_hud.rpf |
+| tex#12 | filter_exploration_*/activities | data/textures/ui/ui_pausemenu.rpf |
+| tex#13 | background_legal/menu_item_zh-* | data/textures/ui/ui_startup_textures.rpf |
+| tex#14 | area_rect/area_oval | data/textures/level_design.rpf |
+| tex#15 | vehicle_crumple_n | data/textures/vehicle_common.rpf |
+| tex#16 | lightning_*/curlnoise | data/textures/vfx_misc.rpf |
+| tex#17 | shore_wave/waterfoam/ocean_sim | data/textures/water.rpf |
+| tex#18 | waterfogatlas_gfb/gfb2 fc=1315 | data/textures/waterfogatlas/waterfogatlas.rpf |
+| tex#19 | skydustpollution/pressure/wind | data/textures/weathermaps.rpf |
+| data_concat#10 | ent_anm_*/anm_blood_* 2626 名 | data/data/effects/ptfx/fxlists.rpf |
+| data_concat#31 | controller_test_*/phone_*/drone_overlay | data/data/ui/scaleform/scaleform_general.rpf |
+| data.rpf@0x40000 | 车辆部件/道具/INPUT_* | data/models/models.rpf |
+- 保留不落盘（缺比错安全）：tex#6（clb_heli pose 视频，footagepostfx 歧义）、tex#9（moon-new/airglow）、
+  data_concat #0（fc=40 全零载荷）/#1（TEMP_*AU）/#2/#4/#6/#7/#11/#28/#37/#40（无签名）。
+- **scaleform_startup.rpf 仍未定位**：UTF-16 扫描 0 命中；SWF 魔数仅 #32（已映射）；
+  未鉴定档疑压缩 GFx 二进制。下轮靠 resolve 日志（修正 printf 后）看游戏实际请求顺序定位。
+
+### 下轮计划（一次一个）
+1. **kyty 复跑（15 分钟 + auto_confirm，printf 正斜杠路径）**：捕获 resolve 轨迹，对比 missing 数
+  （预期 2477-21=2456）、看黑屏是否出现 UI/画面内容（ui_startup_textures + scaleform_general + loading_screens 齐了）。
+2. 若仍有黑屏：按 resolve 日志的请求序定位 scaleform_startup 归属 archive。
+3. anim/packs 组映射（235+59 条）：fcount/size 语义匹配先行（animblackboard=fc1 小档、megadictionaries=fc16384 5.4GB 档）。

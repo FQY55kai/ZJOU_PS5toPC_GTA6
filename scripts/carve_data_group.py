@@ -4,8 +4,11 @@ place them at the real paths the game resolves (Ampr /app0 -> dump dir).
 
 Mapping evidence = plaintext strings found in each archive's data area
 (see docs/development-log.md 2026-11-28 14:10 entry and
-logs/nested-archive-signatures.json).  Byte ranges are exact: header at
-`off`, payload starts at align16(64+toc_end).
+logs/nested-archive-signatures.json).  Byte ranges are exact: nested
+archive occupies [off, off+size) inside data_concat.rpf; the FULL archive
+(header + encrypted TOC + payload) must be placed, because the game opens
+the file as RPF9 and decrypts the TOC itself (payload-only carve = guest
+fault in seconds, proven 2026-11-28 15:00 run).
 
 Writes logs/carve-placed-manifest.txt (used for cleanup; iron rule: only
 delete files listed in the manifest)."""
@@ -44,11 +47,11 @@ def main():
     with open(CONCAT, 'rb') as src, open(MANIFEST, 'w', encoding='utf-8') as mf:
         for idx, rel in sorted(MAPPING.items()):
             t = nest[idx]
-            data_start = (64 + t['toc_end'] + 15) & ~15
-            length = t['size'] - data_start
+            # FULL nested archive: [off, off+size) includes RPF9 header + TOC + payload
+            length = t['size']
             dst = os.path.join(DUMP, rel.replace('/', os.sep))
             os.makedirs(os.path.dirname(dst), exist_ok=True)
-            src.seek(t['off'] + data_start)
+            src.seek(t['off'])
             with open(dst, 'wb') as out:
                 remaining = length
                 while remaining:
@@ -59,7 +62,7 @@ def main():
                     remaining -= len(chunk)
             placed.append(dst)
             mf.write(dst + '\t%d bytes\tarchive#%d\n' % (length, idx))
-            print('placed', rel, length, 'bytes')
+            print('placed', rel, length, 'bytes (full archive)')
     print('total placed:', len(placed))
 
 
