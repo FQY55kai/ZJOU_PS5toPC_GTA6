@@ -969,3 +969,29 @@ kyty + --graphics-debug-dump --perf-overlay 8 分钟 + auto_confirm.py(20s) + 30
 1. index 完成 → `rageforge search` 把雕刻候选映射到 2493 缺失路径（先做 data/textures/models 等 47 个小路径验证链路）。
 2. 自研 carve 脚本：按 magic 偏移切嵌套 archive（大小=下一 magic 偏移差），落盘到真实路径。
 3. kyty 重跑 + auto_confirm，验证 resolve 成功数上升、游戏推进深度。
+
+## 2026-11-28 11:55 自动轮：stub 实验两轮——resolve→read→parse 链路实证为活，空数据即崩；名称映射成为新卡点
+
+### RageForge 索引结果（悲观）
+- `rageforge index` 2 分钟完成：40 archives、66,654 条目，但类别只有 Audio(65,857)+Video(797)——carving 只认 AWC/Bink 强 magic 资源。
+- `search` 对 models.rpf/scaleform_startup/legal 均 0 匹配 → **嵌套 RPF 容器名称无法从元数据恢复**，data_concat 载荷内亦无内嵌 ASCII 名（全量正则扫描 0 条 ".rpf" 后缀字符串）。
+- RageForge 定位确认为"只读显示、不导出"，提取须自研 carve。
+
+### stub 实验轮1（全部 2493 缺失路径落 0 字节文件，scripts/make_stubs.py）
+- resolve missing 2493 → **0**，Ampr resolve 直映 /app0→dump 目录的机制完全可被文件落盘满足。
+- 但游戏在早期 init 崩（~90s）：`Unhandled host exception ... address=0xffffffffffffffff @ runtimeLinker.cpp:702`——启动期必需文件（scaleform/legal/fonts 等）被读成 0 字节，guest 解析即空指针。**证明 resolve 成功后游戏会真的 open+read+parse 该路径。**
+
+### stub 实验轮2（只留 levels/anim 2310 个，scripts/make_late_stubs.py）
+- resolve missing → 36（=被排除的启动期路径，符合预期；levels/anim 全部 resolve 通过）。
+- 崩溃提前到 **3.262s**：resolve 扫描完成后（紧随 levels/anim stub 被读）guest fault 同签名崩溃。
+- 对照基线（无 stub，10:00 轮）：同样 36 个缺失但 levels resolve 全失败时游戏可活 2 分钟——**levels stub 读取是崩溃诱因，链路活性再次证实**。
+
+### 结论（本轮最重要）
+1. **数据通路全活**：Ampr resolve（可被落盘满足）→ open → read → parse 全链路工作，无归档挂载也能走通——只要路径上有真实成员数据。
+2. 新卡点收敛为两个：① **名称映射**（哪个雕刻出的嵌套 archive 对应哪条缺失路径）；② **嵌套 RPF9 TOC 密钥**（即使落盘正确文件，游戏解析嵌套 archive 的 TOC 也需密钥；key_id data=d5c19f6b/levels=d98004d5，RageForge 明示不提供密钥）。
+3. 下轮假设（一次一个）：**序列映射假设**——resolve 日志顺序 ↔ concat 内嵌套头偏移序（同源 TOC 遍历序），用 data/ 组 25 路径 × 38 嵌套头做对齐验证；并行查社区 GTA6-Asset-Info / RageForge docs/RPF9.md 是否已逆向 key_id 派生算法。
+4. 若密钥不可得，退路：构建"合法空 RPF9"（真实头部+entryCount=0）验证游戏接受性，至少让 resolve+parse 不崩，暴露下一层。
+
+### 环境恢复
+- 全部 stub 已按清单删除（stub-manifest.txt / stub-manifest-late.txt 留档），dump data/ 树恢复原始状态（仅 ttdb）。
+- kyty 两轮实验日志：logs/auto-stubtest-20261128-112618.log、auto-stubtest2-20261128-114244.log（勿入库）。
