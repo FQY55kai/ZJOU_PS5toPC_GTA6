@@ -757,3 +757,24 @@
 ### 下一步
 - GPU flip/queue 层攻坚（Kyty 上游每日构建更新 + wave64 着色器/occlusion 开关组合测试）
 - 64 条外围服务 unresolved（PSN/商店/语音等）stub 返回 0 未阻碍启动
+
+## 2026-11-28 08:20-09:00 GPU flip 卡点诊断（目标 30fps 3D 场景）
+
+### 已排除
+- Vulkan 设备正确（RTX 4080 Laptop，universal queue family 0）
+- 开关矩阵 4 组（guest-tsc / flush-draws+occlusion / vblank120 / shader-cache+redzone）全部无效：SubmitFlip=0、超时 562-875 次、同样崩点
+- libkernel 0Cq8ipKr9n0 等未识别 NID：0 次 stub 调用，不构成阻塞
+
+### 发现
+- **GPU 命令流活跃**：command-buffer-dump 90 秒产出 **5278 个 PM4 命令缓冲**（EVENT_WRITE/ACQUIRE_MEM/INDIRECT_BUFFER 循环，RDNA2 命令流正常）
+- GTA6 用 **GPU 侧 flip 提交**（USERDATA_TAG_FLIP 块 = WRITE_DATA + RELEASE_MEM，经 SubmitFlipFromGpu 路径），不调高层 sceVideoOutSubmitFlip —— 解释 SubmitFlip=0
+- **命令流中 flip 块总数 = 0**（RELEASE_MEM 计数 0）：渲染线程反复重建命令缓冲（1048 轮）但从未执行到 flip 块 —— 帧完成条件（GPU 写回标签/occlusion）未满足
+- 游戏主循环活着（手柄轮询持续），只有渲染线程卡死 → 575 次 flip 事件超时后走空指针崩溃分支
+- 着色器编译正常（PS/VS/MS/CS 全 types，含 52K words 大像素着色器）
+
+### 结论
+距"进 3D 场景"还差一层：**GPU 帧完成写回/flip 块到达**。此层需要 Kyty 源码级 guest GPU trace 对比（pm4Handlers flip 路径已确认存在，是命令流未到达而非缺 HLE）。上游 KytyPS5 每日多构建，GTA6 dump 11-27 才发布，关注后续 release。
+
+### 配置基线（复现）
+kyty_clean.exe --game games/GTA6-dump/GTAVIPS5 --printf-direction File --printf-output-file <log>
+eboot.bin 需含两处 NID patch（BlendSpace/ClearFlipMaster）+ sce_sys/param.json flexibleMemorySize=256MB
